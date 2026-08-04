@@ -1,6 +1,6 @@
-# API Sandbox
+# API Sandbox (ThirdFactor MockAPI)
 
-Create production-like REST APIs in minutes without writing backend code. Deploy instantly, simulate real systems, and integrate with ThirdFactor Dynamic Actions or any HTTP client.
+Create production-like REST APIs in minutes without writing backend code. Deploy instantly, simulate external systems, and integrate with ThirdFactor Dynamic Actions or any HTTP client.
 
 ## Stack
 
@@ -35,7 +35,7 @@ echo "NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1" > .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and go to the **Demo Workspace**.
+Open [http://localhost:3000](http://localhost:3000), sign up, and create your workspace.
 
 ## Docker
 
@@ -46,6 +46,46 @@ docker compose up --build
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 - Mock endpoints: http://localhost:8000/api/{workspace}/{endpoint}
+
+## Key Features
+
+- Workspace-based mock API platform
+- AI-like API generation from plain prompt (deterministic, no external LLM)
+- Universal import (Postman/OpenAPI/curl/JSON) to auto-create collections, APIs, and datasets
+- Collections with bulk API assignment
+- Scenarios, rules, stateful CRUD, and rate limiting
+- Auth modes (none, API key, bearer, basic)
+- Incoming/outgoing webhooks with realtime inbox, sorting, payload copy, and CSV export
+- Analytics + logs (including webhook event analytics)
+- Dataset studio with faker-based bulk data generation
+- Command palette (`Cmd/Ctrl + K`) and onboarding wizard
+
+## Universal Import API
+
+Create APIs automatically from existing specs:
+
+```bash
+POST /api/v1/apis/import_spec/
+```
+
+Request body:
+
+```json
+{
+  "format": "postman",
+  "content": { "...": "postman collection json" },
+  "workspace": "WORKSPACE_UUID",
+  "deploy": true
+}
+```
+
+Supported `format` values:
+- `postman`
+- `openapi` / `swagger`
+- `curl`
+- `json`
+
+Use `"preview": true` to parse without persisting.
 
 ## Demo Endpoint
 
@@ -86,25 +126,36 @@ Body:
 }
 ```
 
-## Features
+## Deployment (EC2 folder: `apisandbox`)
 
-| Feature | Status |
-|---------|--------|
-| Workspace-based APIs | ✅ |
-| API Builder (wizard) | ✅ |
-| AI API Generator | ✅ (template-based) |
-| Deploy / Undeploy | ✅ |
-| Mock API Runtime | ✅ |
-| Template Variables (`{{faker.name}}`, `{{uuid}}`, etc.) | ✅ |
-| Conditional Rules | ✅ |
-| Scenarios | ✅ |
-| Request Logging | ✅ |
-| Try Endpoint / Test | ✅ |
-| Authentication (API Key, Bearer, Basic) | ✅ |
-| Artificial Delay | ✅ |
-| Stateful CRUD | ✅ |
-| CORS | ✅ |
-| Collections, Datasets, Import/Export | 🔜 |
+This is the standard deploy flow expected for this project:
+
+```bash
+ssh -i /path/to/key.pem ubuntu@<server-ip>
+mkdir -p ~/apisandbox
+cd ~/apisandbox
+
+# First time
+git clone <your-repo-url> .
+
+# Later deploys
+git pull origin main
+```
+
+Then deploy with Docker:
+
+```bash
+docker compose up -d --build
+```
+
+## Cloudflare Subdomain (Overview)
+
+1. In Cloudflare DNS, create `A` record:
+   - Name: `apisandbox` (or desired subdomain)
+   - IPv4: your EC2 server IP
+2. If using direct server TLS setup, keep proxy `DNS only` first while cert is issued.
+3. Point your app/domain config to the same subdomain.
+4. Verify by opening `https://apisandbox.yourdomain.com`.
 
 ## Project Structure
 
