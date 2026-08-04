@@ -14,9 +14,9 @@ export function AuthLayout({
       <header className="flex h-14 items-center px-6">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-foreground">
-            <span className="text-[10px] font-bold text-background">M</span>
+            <span className="font-mono text-[9px] font-bold text-background">BR</span>
           </div>
-          <span className="text-sm font-medium">MockAPI</span>
+          <span className="text-sm font-medium">backendruntime</span>
         </Link>
       </header>
       <div className="flex flex-1 items-center justify-center px-4 pb-16">

@@ -34,6 +34,9 @@ class MockAPIListSerializer(serializers.ModelSerializer):
     collection_name = serializers.CharField(
         source="collection.name", read_only=True, default=None
     )
+    custom_domain_name = serializers.CharField(
+        source="custom_domain.domain", read_only=True, default=None
+    )
 
     class Meta:
         model = MockAPI
@@ -47,6 +50,8 @@ class MockAPIListSerializer(serializers.ModelSerializer):
             "active_scenario",
             "is_deployed",
             "deployed_url",
+            "custom_domain",
+            "custom_domain_name",
             "request_count_today",
             "last_hit_at",
             "collection_name",
@@ -57,6 +62,9 @@ class MockAPIListSerializer(serializers.ModelSerializer):
 
 class MockAPISerializer(serializers.ModelSerializer):
     deployed_url = serializers.ReadOnlyField()
+    custom_domain_name = serializers.CharField(
+        source="custom_domain.domain", read_only=True, default=None
+    )
 
     class Meta:
         model = MockAPI
@@ -64,6 +72,8 @@ class MockAPISerializer(serializers.ModelSerializer):
             "id",
             "workspace",
             "collection",
+            "custom_domain",
+            "custom_domain_name",
             "name",
             "description",
             "category",
@@ -104,12 +114,31 @@ class MockAPISerializer(serializers.ModelSerializer):
             "id",
             "deployed_at",
             "deployed_url",
+            "custom_domain_name",
             "request_count_today",
             "total_requests",
             "last_hit_at",
             "created_at",
             "updated_at",
         ]
+
+    def validate_custom_domain(self, value):
+        if value is None:
+            return value
+        workspace = None
+        if self.instance is not None:
+            workspace = self.instance.workspace
+        else:
+            ws_id = self.initial_data.get("workspace")
+            if ws_id:
+                from workspaces.models import Workspace
+
+                workspace = Workspace.objects.filter(pk=ws_id).first()
+        if workspace and value.workspace_id != workspace.id:
+            raise serializers.ValidationError("Domain does not belong to this workspace")
+        if not value.verified:
+            raise serializers.ValidationError("Domain must be verified first")
+        return value
 
 
 class MockAPIVersionSerializer(serializers.ModelSerializer):

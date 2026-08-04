@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Globe, ScrollText, FolderOpen, Zap, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getPlatformMockBase } from "@/lib/api";
 
-const WIZARD_KEY = (ws: string) => `mockapi_wizard_${ws}`;
+const WIZARD_KEY = (ws: string) => `br_wizard_${ws}`;
 
 export function isWizardDone(workspace: string) {
   if (typeof window === "undefined") return true;
@@ -129,16 +130,16 @@ export function WelcomeWizard({
 
   const steps = [
     {
-      title: "Welcome to MockAPI",
-      body: "Build any mock REST API with rules, auth, rate limits, and logs — no backend code.",
+      title: "Welcome to backendruntime",
+      body: "Enterprise infrastructure for reliable pre-backend mocking — validate contracts, build mocks, and inspect traffic.",
     },
     {
       title: "Your API base URL",
-      body: `Deployed endpoints live at:\nhttp://localhost:8000/api/${workspace}/your-path\nShare this with your team or wire it into tests.`,
+      body: `Deployed endpoints live at:\n${getPlatformMockBase(workspace)}/your-path\nShare with QA, partners, or wire into tests.`,
     },
     {
       title: "Quick start",
-      body: "1. Create an endpoint (template or describe it)\n2. Deploy\n3. Hit it from curl or your app\n4. Watch logs in real time",
+      body: "1. Create an endpoint (template, import, or describe it)\n2. Deploy\n3. Hit it from curl or your app\n4. Watch logs in real time",
     },
   ];
 

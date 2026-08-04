@@ -1,6 +1,6 @@
-# API Sandbox (ThirdFactor MockAPI)
+# backendruntime.com
 
-Create production-like REST APIs in minutes without writing backend code. Deploy instantly, simulate external systems, and integrate with ThirdFactor Dynamic Actions or any HTTP client.
+Enterprise infrastructure for reliable pre-backend mocking — API validator, mock builder, and runtime traffic for teams that need contracts live before the backend ships.
 
 ## Stack
 

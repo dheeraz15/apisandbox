@@ -22,6 +22,9 @@ export function setAuthToken(token: string | null) {
 }
 
 function parseApiError(body: Record<string, unknown>): string {
+  if (typeof body.detail === "string" && typeof body.error === "string") {
+    return `${body.error}: ${body.detail}`;
+  }
   if (typeof body.detail === "string") return body.detail;
   if (typeof body.error === "string") return body.error;
   if (Array.isArray(body.detail) && body.detail.length) {
@@ -121,19 +124,33 @@ export const api = {
       list: (slug: string) =>
         fetchAPI<WorkspaceDomain[]>(`/workspaces/${slug}/domains/`),
       add: (slug: string, domain: string) =>
-        fetchAPI<WorkspaceDomain>(`/workspaces/${slug}/domains/`, {
-          method: "POST",
-          body: JSON.stringify({ domain }),
-        }),
+        fetchAPI<WorkspaceDomain & { setup?: DomainSetup }>(
+          `/workspaces/${slug}/domains/`,
+          {
+            method: "POST",
+            body: JSON.stringify({ domain }),
+          }
+        ),
       delete: (slug: string, id: string) =>
         fetchAPI<void>(`/workspaces/${slug}/domains/?id=${id}`, {
           method: "DELETE",
         }),
       verify: (slug: string, id: string) =>
-        fetchAPI<WorkspaceDomain>(`/workspaces/${slug}/domains/verify/`, {
-          method: "POST",
-          body: JSON.stringify({ id }),
-        }),
+        fetchAPI<WorkspaceDomain & { message?: string }>(
+          `/workspaces/${slug}/domains/verify/`,
+          {
+            method: "POST",
+            body: JSON.stringify({ id }),
+          }
+        ),
+      setDefault: (slug: string, id: string | null) =>
+        fetchAPI<{ default_domain: WorkspaceDomain | null; message: string }>(
+          `/workspaces/${slug}/domains/set-default/`,
+          {
+            method: "POST",
+            body: JSON.stringify({ id }),
+          }
+        ),
     },
     stats: (slug: string) => fetchAPI<WorkspaceStats>(`/workspaces/${slug}/stats/`),
     analytics: (slug: string, days = 7) =>
@@ -244,6 +261,15 @@ export const api = {
       fetchAPI<{ assigned: number }>(`/collections/${id}/assign/`, {
         method: "POST",
         body: JSON.stringify({ api_ids: apiIds }),
+      }),
+    unassign: (id: string, apiIds: string[]) =>
+      fetchAPI<{ unassigned: number }>(`/collections/${id}/unassign/`, {
+        method: "POST",
+        body: JSON.stringify({ api_ids: apiIds }),
+      }),
+    deployAll: (id: string) =>
+      fetchAPI<{ deployed: number }>(`/collections/${id}/deploy_all/`, {
+        method: "POST",
       }),
   },
   datasets: {
@@ -375,7 +401,45 @@ export interface WorkspaceDomain {
   id: string;
   domain: string;
   verified: boolean;
+  is_default: boolean;
+  verification_token: string;
+  verification_method?: string;
+  last_verified_at?: string | null;
+  cname_target: string;
+  txt_name: string;
+  txt_value: string;
   created_at: string;
+}
+
+export interface DomainSetup {
+  cname_host: string;
+  cname_target: string;
+  txt_name: string;
+  txt_value: string;
+  instructions: string[];
+}
+
+/** Public mock API base for the platform host (not the management /api/v1). */
+export function getPlatformMockBase(workspaceSlug: string): string {
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    // In local next.dev, mocks are on :8000; in prod nginx proxies /api/
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return `http://${hostname}:8000/api/${workspaceSlug}`;
+    }
+    return `${protocol}//${hostname}/api/${workspaceSlug}`;
+  }
+  return `http://localhost:8000/api/${workspaceSlug}`;
+}
+
+export function getEndpointUrl(
+  workspaceSlug: string,
+  endpoint: string,
+  domain?: WorkspaceDomain | null
+): string {
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (domain?.verified) return `https://${domain.domain}${path}`;
+  return `${getPlatformMockBase(workspaceSlug)}${path}`;
 }
 
 export interface WorkspaceStats {
@@ -454,6 +518,8 @@ export interface MockAPIListItem {
   active_scenario: string;
   is_deployed: boolean;
   deployed_url: string;
+  custom_domain: string | null;
+  custom_domain_name?: string | null;
   request_count_today: number;
   last_hit_at: string | null;
   collection_name: string | null;
@@ -465,6 +531,8 @@ export interface MockAPI {
   id: string;
   workspace: string;
   collection: string | null;
+  custom_domain: string | null;
+  custom_domain_name?: string | null;
   name: string;
   description: string;
   category: string;

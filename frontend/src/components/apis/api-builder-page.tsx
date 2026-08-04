@@ -27,7 +27,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api, MockAPI, ApiTemplate, prettyJSON } from "@/lib/api";
+import {
+  api,
+  MockAPI,
+  ApiTemplate,
+  WorkspaceDomain,
+  getEndpointUrl,
+  getPlatformMockBase,
+  prettyJSON,
+} from "@/lib/api";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -56,6 +64,8 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
   const [deployOnCreate, setDeployOnCreate] = useState(true);
   const [step, setStep] = useState(0);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [domains, setDomains] = useState<WorkspaceDomain[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState<string>("platform");
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<MockAPI>>({
     name: "",
@@ -75,6 +85,7 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
     active_scenario: "default",
     scenarios: [],
     cors_enabled: true,
+    custom_domain: null,
   });
 
   useEffect(() => {
@@ -86,6 +97,17 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
           e instanceof Error ? e.message : "Failed to load workspace."
         )
       );
+    api.workspaces.domains
+      .list(workspace)
+      .then((list) => {
+        setDomains(list);
+        const def = list.find((d) => d.verified && d.is_default);
+        if (def) {
+          setSelectedDomain(def.id);
+          setForm((prev) => ({ ...prev, custom_domain: def.id }));
+        }
+      })
+      .catch(() => {});
     api.apis
       .templates()
       .then(setTemplates)
@@ -95,6 +117,17 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
         )
       );
   }, [workspace]);
+
+  const verifiedDomains = domains.filter((d) => d.verified);
+  const previewDomain =
+    selectedDomain === "platform"
+      ? null
+      : verifiedDomains.find((d) => d.id === selectedDomain) || null;
+  const previewUrl = getEndpointUrl(
+    workspace,
+    form.endpoint || "/",
+    previewDomain
+  );
 
   const update = (patch: Partial<MockAPI>) =>
     setForm((prev) => ({ ...prev, ...patch }));
@@ -148,6 +181,7 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
         ...form,
         workspace: wsId,
         collection: collectionId || form.collection,
+        custom_domain: selectedDomain === "platform" ? null : selectedDomain,
       });
       if (andDeploy) {
         await api.apis.deploy(created.id);
@@ -378,12 +412,50 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                     </Select>
                   </div>
                   <div>
-                    <Label>Endpoint</Label>
+                    <Label>Endpoint path</Label>
                     <Input
                       className="font-mono"
                       value={form.endpoint}
                       onChange={(e) => update({ endpoint: e.target.value })}
+                      placeholder="/v1/users"
                     />
+                  </div>
+                  <div>
+                    <Label>Serve on domain</Label>
+                    <Select
+                      value={selectedDomain}
+                      onValueChange={(v) => {
+                        if (!v) return;
+                        setSelectedDomain(v);
+                        update({
+                          custom_domain: v === "platform" ? null : v,
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="platform">
+                          Platform default · {getPlatformMockBase(workspace)}
+                        </SelectItem>
+                        {verifiedDomains.map((d) => (
+                          <SelectItem key={d.id} value={d.id}>
+                            {d.domain}
+                            {d.is_default ? " (workspace default)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground break-all">
+                      Live URL preview:{" "}
+                      <code className="font-mono text-foreground">{previewUrl}</code>
+                    </p>
+                    {verifiedDomains.length === 0 && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Add & verify a custom domain in Settings to serve on your own hostname.
+                      </p>
+                    )}
                   </div>
                 </>
               )}
@@ -488,6 +560,9 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
               <MethodBadge method={form.method || "POST"} />
               <span className="font-mono truncate">{form.endpoint || "/"}</span>
             </div>
+            <p className="font-mono text-[10px] text-muted-foreground break-all">
+              {previewUrl}
+            </p>
             <p className="font-medium">{form.name || "Untitled API"}</p>
             <p className="text-muted-foreground">{form.description || "No description"}</p>
             <div>

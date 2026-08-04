@@ -1,6 +1,6 @@
 import uuid
 from django.db import models
-from workspaces.models import Workspace
+from workspaces.models import Workspace, WorkspaceDomain
 
 
 class Collection(models.Model):
@@ -72,6 +72,14 @@ class MockAPI(models.Model):
         blank=True,
         related_name="apis",
     )
+    custom_domain = models.ForeignKey(
+        WorkspaceDomain,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="apis",
+        help_text="Serve this endpoint on a verified custom domain. Null = platform default.",
+    )
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -135,8 +143,22 @@ class MockAPI(models.Model):
     def deployed_url(self):
         from django.conf import settings
 
+        endpoint = self.endpoint if self.endpoint.startswith("/") else f"/{self.endpoint}"
+        if (
+            self.custom_domain_id
+            and getattr(self, "custom_domain", None)
+            and self.custom_domain.verified
+        ):
+            return f"https://{self.custom_domain.domain}{endpoint}"
+
         base = settings.SANDBOX_BASE_URL.rstrip("/")
-        return f"{base}/api/{self.workspace.slug}{self.endpoint}"
+        return f"{base}/api/{self.workspace.slug}{endpoint}"
+
+    def resolve_domain(self):
+        """Bound custom domain if set and verified."""
+        if self.custom_domain_id and self.custom_domain and self.custom_domain.verified:
+            return self.custom_domain
+        return None
 
 
 class APIVersion(models.Model):

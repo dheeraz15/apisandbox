@@ -12,6 +12,8 @@ import {
   Plus,
   Webhook,
   Database,
+  Variable,
+  FileSearch,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -22,17 +24,18 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { api, MockAPIListItem } from "@/lib/api";
+import { api, Collection, MockAPIListItem } from "@/lib/api";
 
 const PAGES = [
-  { label: "Overview", href: "", icon: LayoutDashboard },
-  { label: "Endpoints", href: "/apis", icon: Globe },
-  { label: "Collections", href: "/collections", icon: FolderOpen },
-  { label: "Logs", href: "/logs", icon: ScrollText },
-  { label: "Analytics", href: "/analytics", icon: BarChart3 },
-  { label: "Webhooks", href: "/webhooks", icon: Webhook },
-  { label: "Datasets", href: "/datasets", icon: Database },
-  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Overview", href: "", icon: LayoutDashboard, keywords: "home dashboard" },
+  { label: "Endpoints", href: "/apis", icon: Globe, keywords: "apis mocks" },
+  { label: "Collections", href: "/collections", icon: FolderOpen, keywords: "groups" },
+  { label: "Logs", href: "/logs", icon: ScrollText, keywords: "traffic inspector" },
+  { label: "Analytics", href: "/analytics", icon: BarChart3, keywords: "metrics" },
+  { label: "Webhooks", href: "/webhooks", icon: Webhook, keywords: "callbacks inbox" },
+  { label: "Datasets", href: "/datasets", icon: Database, keywords: "faker data" },
+  { label: "Variables", href: "/variables", icon: Variable, keywords: "env secrets" },
+  { label: "Settings", href: "/settings", icon: Settings, keywords: "domains team" },
 ];
 
 export function CommandPalette({ workspace }: { workspace: string }) {
@@ -41,26 +44,28 @@ export function CommandPalette({ workspace }: { workspace: string }) {
   const base = `/${workspace}`;
   const [open, setOpen] = useState(false);
   const [apis, setApis] = useState<MockAPIListItem[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
 
-  const loadApis = useCallback(() => {
+  const load = useCallback(() => {
     api.apis.list(workspace).then((r) => setApis(r.results)).catch(() => {});
+    api.collections.list(workspace).then(setCollections).catch(() => {});
   }, [workspace]);
 
   useEffect(() => {
-    loadApis();
-  }, [loadApis]);
+    load();
+  }, [load]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setOpen((v) => !v);
-        loadApis();
+        load();
       }
     };
     const onOpen = () => {
       setOpen(true);
-      loadApis();
+      load();
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("open-command-palette", onOpen);
@@ -68,7 +73,7 @@ export function CommandPalette({ workspace }: { workspace: string }) {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("open-command-palette", onOpen);
     };
-  }, [loadApis]);
+  }, [load]);
 
   const go = (path: string) => {
     setOpen(false);
@@ -76,22 +81,41 @@ export function CommandPalette({ workspace }: { workspace: string }) {
   };
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen} title="Search" description="Pages and endpoints">
-      <CommandInput placeholder="Search pages, endpoints…" />
+    <CommandDialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Search"
+      description="Pages, collections, and endpoints"
+    >
+      <CommandInput placeholder="Search pages, collections, endpoints…" />
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
         <CommandGroup heading="Actions">
-          <CommandItem onSelect={() => go(`${base}/apis/new`)}>
+          <CommandItem
+            value="new endpoint create api"
+            onSelect={() => go(`${base}/apis/new`)}
+          >
             <Plus className="mr-2 h-4 w-4" />
             New endpoint
+          </CommandItem>
+          <CommandItem
+            value="import postman openapi curl"
+            onSelect={() => go(`${base}/collections`)}
+          >
+            <FileSearch className="mr-2 h-4 w-4" />
+            Import Postman / OpenAPI
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Pages">
-          {PAGES.map(({ label, href, icon: Icon }) => {
+          {PAGES.map(({ label, href, icon: Icon, keywords }) => {
             const path = href ? `${base}${href}` : base;
             return (
-              <CommandItem key={href} onSelect={() => go(path)}>
+              <CommandItem
+                key={href || "overview"}
+                value={`${label} ${keywords}`}
+                onSelect={() => go(path)}
+              >
                 <Icon className="mr-2 h-4 w-4" />
                 {label}
                 {pathname === path && (
@@ -101,20 +125,40 @@ export function CommandPalette({ workspace }: { workspace: string }) {
             );
           })}
         </CommandGroup>
+        {collections.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Collections">
+              {collections.slice(0, 12).map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={`collection ${c.name} ${c.description || ""}`}
+                  onSelect={() => go(`${base}/collections?c=${c.id}`)}
+                >
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  <span className="truncate">{c.name}</span>
+                  <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                    {c.api_count}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
         {apis.length > 0 && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Endpoints">
-              {apis.slice(0, 20).map((item) => (
+              {apis.slice(0, 25).map((item) => (
                 <CommandItem
                   key={item.id}
                   onSelect={() => go(`${base}/apis/${item.id}`)}
-                  value={`${item.name} ${item.endpoint}`}
+                  value={`${item.name} ${item.method} ${item.endpoint} ${item.collection_name || ""}`}
                 >
                   <Globe className="mr-2 h-4 w-4" />
                   <span className="truncate">{item.name}</span>
                   <span className="ml-2 truncate font-mono text-xs text-muted-foreground">
-                    {item.endpoint}
+                    {item.method} {item.endpoint}
                   </span>
                 </CommandItem>
               ))}

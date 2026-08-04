@@ -10,101 +10,122 @@ from apis.models import MockAPI
 from .engine import MockAPIEngine
 
 
+def handle_mock_request(request, workspace_slug, endpoint_path, custom_domain=None):
+    """Shared mock handler for platform /api/{workspace}/... and custom domains."""
+    method = request.method
+    full_path = "/" + endpoint_path.lstrip("/") if endpoint_path else "/"
+
+    apis = MockAPI.objects.filter(
+        workspace__slug=workspace_slug,
+        is_deployed=True,
+        method=method,
+    ).select_related("custom_domain", "workspace")
+
+    if custom_domain is not None:
+        # Only endpoints bound to this custom domain
+        apis = apis.filter(custom_domain=custom_domain)
+    else:
+        # Platform host: only endpoints without a custom domain binding
+        apis = apis.filter(custom_domain__isnull=True)
+
+    matched_api = None
+    path_params = {}
+
+    for api in apis:
+        params = _match_path(api.endpoint, full_path)
+        if params is not None:
+            matched_api = api
+            path_params = params
+            break
+
+    if not matched_api:
+        return JsonResponse(
+            {
+                "error": "Endpoint not found",
+                "path": full_path,
+                "domain": custom_domain.domain if custom_domain else "platform",
+            },
+            status=404,
+        )
+
+    body = None
+    if method in ("POST", "PUT", "PATCH"):
+        content_type = request.content_type or ""
+        if "json" in content_type:
+            try:
+                body = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                body = {"raw": request.body.decode("utf-8", errors="replace")}
+        elif "form" in content_type:
+            body = dict(request.POST)
+        else:
+            try:
+                body = json.loads(request.body)
+            except (json.JSONDecodeError, ValueError):
+                body = request.body.decode("utf-8", errors="replace")
+
+    headers = {k: v for k, v in request.headers.items()}
+    query_params = dict(request.GET)
+
+    engine = MockAPIEngine(matched_api)
+    result = engine.process_request(
+        method=method,
+        path=full_path,
+        headers=headers,
+        query_params=query_params,
+        body=body,
+        path_params=path_params,
+        client_ip=_get_client_ip(request),
+    )
+
+    response = JsonResponse(
+        result["body"],
+        status=result["status"],
+        safe=isinstance(result["body"], dict),
+    )
+
+    for key, value in result.get("headers", {}).items():
+        response[key] = value
+
+    if matched_api.cors_enabled:
+        cors = matched_api.cors_config or {}
+        origin = request.headers.get("Origin", "*")
+        allowed = cors.get("origins", ["*"])
+        if "*" in allowed or origin in allowed:
+            response["Access-Control-Allow-Origin"] = origin
+            response["Access-Control-Allow-Methods"] = ",".join(
+                cors.get("methods", ["GET", "POST", "PUT", "PATCH", "DELETE"])
+            )
+            response["Access-Control-Allow-Headers"] = ",".join(
+                cors.get(
+                    "headers",
+                    ["Content-Type", "Authorization", "X-API-Key"],
+                )
+            )
+
+    response["X-Sandbox-Latency-Ms"] = str(result["latency_ms"])
+    response["X-Sandbox-Scenario"] = result.get("scenario", "default")
+    if custom_domain:
+        response["X-Sandbox-Domain"] = custom_domain.domain
+
+    return response
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class MockAPIHandlerView(View):
     def dispatch(self, request, workspace_slug, endpoint_path):
-        method = request.method
-        full_path = (
-            "/" + endpoint_path.lstrip("/") if endpoint_path else "/"
+        custom_domain = getattr(request, "custom_domain", None)
+        # On a custom domain, /api/{workspace}/... still works for bound endpoints
+        return handle_mock_request(
+            request,
+            workspace_slug=workspace_slug,
+            endpoint_path=endpoint_path,
+            custom_domain=custom_domain,
         )
-
-        apis = MockAPI.objects.filter(
-            workspace__slug=workspace_slug,
-            is_deployed=True,
-            method=method,
-        )
-
-        matched_api = None
-        path_params = {}
-
-        for api in apis:
-            params = _match_path(api.endpoint, full_path)
-            if params is not None:
-                matched_api = api
-                path_params = params
-                break
-
-        if not matched_api:
-            return JsonResponse(
-                {"error": "Endpoint not found", "path": full_path},
-                status=404,
-            )
-
-        body = None
-        if method in ("POST", "PUT", "PATCH"):
-            content_type = request.content_type or ""
-            if "json" in content_type:
-                try:
-                    body = json.loads(request.body)
-                except (json.JSONDecodeError, ValueError):
-                    body = {"raw": request.body.decode("utf-8", errors="replace")}
-            elif "form" in content_type:
-                body = dict(request.POST)
-            else:
-                try:
-                    body = json.loads(request.body)
-                except (json.JSONDecodeError, ValueError):
-                    body = request.body.decode("utf-8", errors="replace")
-
-        headers = {k: v for k, v in request.headers.items()}
-        query_params = dict(request.GET)
-
-        engine = MockAPIEngine(matched_api)
-        result = engine.process_request(
-            method=method,
-            path=full_path,
-            headers=headers,
-            query_params=query_params,
-            body=body,
-            path_params=path_params,
-            client_ip=_get_client_ip(request),
-        )
-
-        response = JsonResponse(
-            result["body"],
-            status=result["status"],
-            safe=isinstance(result["body"], dict),
-        )
-
-        for key, value in result.get("headers", {}).items():
-            response[key] = value
-
-        if matched_api.cors_enabled:
-            cors = matched_api.cors_config or {}
-            origin = request.headers.get("Origin", "*")
-            allowed = cors.get("origins", ["*"])
-            if "*" in allowed or origin in allowed:
-                response["Access-Control-Allow-Origin"] = origin
-                response["Access-Control-Allow-Methods"] = ",".join(
-                    cors.get("methods", ["GET", "POST", "PUT", "PATCH", "DELETE"])
-                )
-                response["Access-Control-Allow-Headers"] = ",".join(
-                    cors.get(
-                        "headers",
-                        ["Content-Type", "Authorization", "X-API-Key"],
-                    )
-                )
-
-        response["X-Sandbox-Latency-Ms"] = str(result["latency_ms"])
-        response["X-Sandbox-Scenario"] = result.get("scenario", "default")
-
-        return response
 
     def options(self, request, workspace_slug, endpoint_path):
         response = HttpResponse(status=204)
-        response["Access-Control-Allow-Origin"] = request.headers.get(
-            "Origin", "*"
-        )
+        response["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
         response["Access-Control-Allow-Methods"] = (
             "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS"
         )

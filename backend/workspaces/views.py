@@ -262,17 +262,46 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             return Response({"error": "Forbidden"}, status=403)
         if request.method == "DELETE":
             domain_id = request.query_params.get("id") or request.data.get("id")
-            workspace.domains.filter(id=domain_id).delete()
+            domain = workspace.domains.filter(id=domain_id).first()
+            if domain:
+                # Unbind APIs first so they fall back to platform
+                domain.apis.update(custom_domain=None)
+                domain.delete()
             return Response(status=204)
-        domain = request.data.get("domain", "").strip().lower()
+        domain = request.data.get("domain", "").strip().lower().rstrip(".")
+        domain = domain.removeprefix("https://").removeprefix("http://").split("/")[0]
         if not domain or "." not in domain:
             return Response({"error": "Valid domain required"}, status=400)
+        if WorkspaceDomain.objects.filter(domain=domain).exclude(workspace=workspace).exists():
+            return Response(
+                {"error": "Domain is already claimed by another workspace"},
+                status=400,
+            )
+        from .domain_verify import generate_verification_token, cname_target
+
         obj, created = workspace.domains.get_or_create(
             domain=domain,
-            defaults={"verified": False},
+            defaults={
+                "verified": False,
+                "verification_token": generate_verification_token(),
+            },
         )
+        data = WorkspaceDomainSerializer(obj).data
+        data["setup"] = {
+            "cname_host": domain,
+            "cname_target": cname_target(),
+            "txt_name": obj.txt_name,
+            "txt_value": obj.txt_value,
+            "instructions": [
+                f"In Cloudflare (or your DNS provider), create a CNAME record:",
+                f"  Name/Host: {domain}  →  Target: {cname_target()}",
+                "Prefer Cloudflare proxy ON (orange cloud) so HTTPS works automatically.",
+                f"Optional ownership TXT: {obj.txt_name} = {obj.txt_value}",
+                "Click Verify once DNS has propagated (usually 1–5 minutes).",
+            ],
+        }
         return Response(
-            WorkspaceDomainSerializer(obj).data,
+            data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
@@ -287,9 +316,71 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             obj = workspace.domains.get(id=domain_id)
         except WorkspaceDomain.DoesNotExist:
             return Response({"error": "Domain not found"}, status=404)
+
+        from .domain_verify import verify_domain_dns
+
+        ok, message = verify_domain_dns(obj.domain, obj.verification_token)
+        if not ok:
+            return Response(
+                {
+                    "error": "DNS verification failed",
+                    "detail": message,
+                    "domain": WorkspaceDomainSerializer(obj).data,
+                },
+                status=400,
+            )
+
         obj.verified = True
-        obj.save(update_fields=["verified"])
-        return Response(WorkspaceDomainSerializer(obj).data)
+        obj.verification_method = message[:50]
+        obj.last_verified_at = timezone.now()
+        # First verified domain becomes default if none set
+        if not workspace.domains.filter(verified=True, is_default=True).exists():
+            obj.is_default = True
+        obj.save()
+        return Response(
+            {
+                **WorkspaceDomainSerializer(obj).data,
+                "message": message,
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="domains/set-default")
+    def set_default_domain(self, request, slug=None):
+        """Set workspace default domain for new endpoints. Pass id=null for platform default."""
+        workspace = self.get_object()
+        membership = self._get_membership(workspace)
+        if not membership or not membership.can_edit:
+            return Response({"error": "Forbidden"}, status=403)
+
+        domain_id = request.data.get("id", None)
+        # Explicit platform default
+        if domain_id in (None, "", "platform", "default"):
+            workspace.domains.filter(is_default=True).update(is_default=False)
+            return Response(
+                {
+                    "default_domain": None,
+                    "message": "Platform domain is now the default for new endpoints",
+                }
+            )
+
+        try:
+            obj = workspace.domains.get(id=domain_id)
+        except WorkspaceDomain.DoesNotExist:
+            return Response({"error": "Domain not found"}, status=404)
+        if not obj.verified:
+            return Response(
+                {"error": "Only verified domains can be set as default"},
+                status=400,
+            )
+        workspace.domains.filter(is_default=True).update(is_default=False)
+        obj.is_default = True
+        obj.save(update_fields=["is_default"])
+        return Response(
+            {
+                "default_domain": WorkspaceDomainSerializer(obj).data,
+                "message": f"{obj.domain} is now the default for new endpoints",
+            }
+        )
 
     @action(detail=True, methods=["patch", "delete"], url_path="members/(?P<member_id>[^/.]+)")
     def member_detail(self, request, slug=None, member_id=None):

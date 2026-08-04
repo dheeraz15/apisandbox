@@ -94,16 +94,44 @@ class WorkspaceDomain(models.Model):
     workspace = models.ForeignKey(
         Workspace, on_delete=models.CASCADE, related_name="domains"
     )
-    domain = models.CharField(max_length=255)
+    domain = models.CharField(max_length=255, unique=True)
     verified = models.BooleanField(default=False)
+    is_default = models.BooleanField(default=False)
+    verification_token = models.CharField(max_length=64, blank=True)
+    verification_method = models.CharField(max_length=50, blank=True)
+    last_verified_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ["workspace", "domain"]
-        ordering = ["domain"]
+        ordering = ["-is_default", "domain"]
 
     def __str__(self):
         return self.domain
+
+    def save(self, *args, **kwargs):
+        if not self.verification_token:
+            from .domain_verify import generate_verification_token
+
+            self.verification_token = generate_verification_token()
+        super().save(*args, **kwargs)
+        if self.is_default:
+            WorkspaceDomain.objects.filter(workspace=self.workspace).exclude(
+                pk=self.pk
+            ).filter(is_default=True).update(is_default=False)
+
+    @property
+    def cname_target(self):
+        from .domain_verify import cname_target
+
+        return cname_target()
+
+    @property
+    def txt_name(self):
+        return f"_mockapi-verify.{self.domain}"
+
+    @property
+    def txt_value(self):
+        return self.verification_token
 
 
 class WorkspaceInvite(models.Model):

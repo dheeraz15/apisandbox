@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MockAPI — Mock API Generator",
+  title: "backendruntime — Enterprise API validator & mock infrastructure",
   description:
-    "Create, deploy, and test any mock API with rules, auth, rate limits, and logs.",
+    "Enterprise infrastructure for reliable pre-backend mocking. Validate contracts, build mock APIs, and inspect traffic before the real backend ships.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

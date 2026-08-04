@@ -35,7 +35,7 @@ export default function SignupPage() {
   return (
     <AuthLayout
       title="Create your account"
-      subtitle="Free to start. Deploy mock APIs in minutes."
+      subtitle="Enterprise mock infrastructure. Start free."
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">

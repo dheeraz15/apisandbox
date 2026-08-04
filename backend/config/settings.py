@@ -8,8 +8,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-key-change-in-production")
 DEBUG = os.getenv("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 if DEBUG and "*" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("*")
+# Multi-tenant custom domains: allow any Host; CustomDomainMiddleware validates against DB
+if os.getenv("ALLOW_CUSTOM_DOMAINS", "True") == "True" and "*" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append("*")
 
 INSTALLED_APPS = [
@@ -31,6 +34,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "config.middleware.CustomDomainMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -118,3 +122,7 @@ if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 
 SANDBOX_BASE_URL = os.getenv("SANDBOX_BASE_URL", "http://localhost:8000")
+CUSTOM_DOMAIN_CNAME_TARGET = os.getenv(
+    "CUSTOM_DOMAIN_CNAME_TARGET",
+    "",  # falls back to hostname of SANDBOX_BASE_URL
+)

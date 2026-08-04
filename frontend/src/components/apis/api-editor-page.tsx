@@ -24,6 +24,8 @@ import {
   TestResponse,
   RequestLog,
   ApiStats,
+  WorkspaceDomain,
+  getPlatformMockBase,
   prettyJSON,
 } from "@/lib/api";
 
@@ -37,6 +39,7 @@ export function APIEditorPage({
   apiId: string;
 }) {
   const [apiData, setApiData] = useState<MockAPI | null>(null);
+  const [domains, setDomains] = useState<WorkspaceDomain[]>([]);
   const [loading, setLoading] = useState(true);
   const [testBody, setTestBody] = useState("{}");
   const [testResult, setTestResult] = useState<TestResponse | null>(null);
@@ -61,7 +64,8 @@ export function APIEditorPage({
     load();
     api.apis.logs(apiId).then(setLogs).catch(() => {});
     api.apis.stats(apiId).then(setStats).catch(() => {});
-  }, [apiId]);
+    api.workspaces.domains.list(workspace).then(setDomains).catch(() => {});
+  }, [apiId, workspace]);
 
   const saveRateLimit = async () => {
     const val = rateLimit === "" ? null : Number(rateLimit);
@@ -142,6 +146,35 @@ export function APIEditorPage({
               </div>
             </div>
           )}
+          <div>
+            <Label className="text-xs text-muted-foreground">Domain</Label>
+            <Select
+              value={apiData.custom_domain || "platform"}
+              onValueChange={async (v) => {
+                if (!v) return;
+                setApiData(
+                  await api.apis.update(apiId, {
+                    custom_domain: v === "platform" ? null : v,
+                  })
+                );
+                toast.success("Domain updated");
+              }}
+            >
+              <SelectTrigger className="mt-1 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="platform">
+                  Platform · {getPlatformMockBase(workspace)}
+                </SelectItem>
+                {domains.filter((d) => d.verified).map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.domain}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div>
             <Label className="text-xs text-muted-foreground">Scenario</Label>
             <Select

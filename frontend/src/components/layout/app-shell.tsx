@@ -76,9 +76,9 @@ export function AppShell({
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-1.5">
             <div className="flex h-5 w-5 items-center justify-center rounded bg-foreground">
-              <span className="text-[8px] font-bold text-background">M</span>
+              <span className="font-mono text-[7px] font-bold text-background">BR</span>
             </div>
-            <span className="text-sm font-medium">MockAPI</span>
+            <span className="text-sm font-medium">backendruntime</span>
           </Link>
           <span className="text-muted-foreground/40">/</span>
           <DropdownMenu>

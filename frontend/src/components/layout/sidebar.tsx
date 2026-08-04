@@ -48,10 +48,10 @@ export function Sidebar({ workspace }: SidebarProps) {
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold leading-none tracking-tight">
-            ThirdFactor
+            backendruntime
           </p>
           <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-            API Sandbox · {workspace}
+            {workspace}
           </p>
         </div>
       </div>

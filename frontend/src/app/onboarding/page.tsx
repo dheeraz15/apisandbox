@@ -96,7 +96,7 @@ export default function OnboardingPage() {
         <div className="space-y-2">
           <Label>URL slug</Label>
           <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 h-10">
-            <span className="text-sm text-muted-foreground shrink-0">mockapi.app/</span>
+            <span className="text-sm text-muted-foreground shrink-0">backendruntime.com/</span>
             <input
               className="flex-1 bg-transparent text-sm outline-none"
               value={workspaceSlug}

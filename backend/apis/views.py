@@ -245,6 +245,27 @@ class CollectionViewSet(viewsets.ModelViewSet):
         ).update(collection=collection)
         return Response({"assigned": updated})
 
+    @action(detail=True, methods=["post"])
+    def unassign(self, request, pk=None):
+        collection = self.get_object()
+        api_ids = request.data.get("api_ids", [])
+        if not isinstance(api_ids, list):
+            return Response({"error": "api_ids must be a list"}, status=400)
+        updated = MockAPI.objects.filter(
+            id__in=api_ids, workspace=collection.workspace, collection=collection
+        ).update(collection=None)
+        return Response({"unassigned": updated})
+
+    @action(detail=True, methods=["post"])
+    def deploy_all(self, request, pk=None):
+        collection = self.get_object()
+        from django.utils import timezone
+
+        updated = collection.apis.filter(is_deployed=False).update(
+            is_deployed=True, deployed_at=timezone.now()
+        )
+        return Response({"deployed": updated})
+
 
 class DatasetViewSet(viewsets.ModelViewSet):
     serializer_class = DatasetSerializer

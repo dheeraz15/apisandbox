@@ -19,9 +19,36 @@ class WorkspaceVariableSerializer(serializers.ModelSerializer):
 
 
 class WorkspaceDomainSerializer(serializers.ModelSerializer):
+    cname_target = serializers.CharField(read_only=True)
+    txt_name = serializers.CharField(read_only=True)
+    txt_value = serializers.CharField(read_only=True)
+
     class Meta:
         model = WorkspaceDomain
-        fields = ["id", "domain", "verified", "created_at"]
+        fields = [
+            "id",
+            "domain",
+            "verified",
+            "is_default",
+            "verification_token",
+            "verification_method",
+            "last_verified_at",
+            "cname_target",
+            "txt_name",
+            "txt_value",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "verified",
+            "verification_token",
+            "verification_method",
+            "last_verified_at",
+            "cname_target",
+            "txt_name",
+            "txt_value",
+            "created_at",
+        ]
         read_only_fields = ["id", "verified", "created_at"]
 
 
