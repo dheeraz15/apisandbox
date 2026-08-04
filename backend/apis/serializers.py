@@ -31,6 +31,7 @@ class DatasetSerializer(serializers.ModelSerializer):
 
 class MockAPIListSerializer(serializers.ModelSerializer):
     deployed_url = serializers.ReadOnlyField()
+    version_label = serializers.CharField(read_only=True)
     collection_name = serializers.CharField(
         source="collection.name", read_only=True, default=None
     )
@@ -47,6 +48,8 @@ class MockAPIListSerializer(serializers.ModelSerializer):
             "endpoint",
             "category",
             "version",
+            "version_label",
+            "endpoint_type",
             "active_scenario",
             "is_deployed",
             "deployed_url",
@@ -62,6 +65,7 @@ class MockAPIListSerializer(serializers.ModelSerializer):
 
 class MockAPISerializer(serializers.ModelSerializer):
     deployed_url = serializers.ReadOnlyField()
+    version_label = serializers.CharField(read_only=True)
     custom_domain_name = serializers.CharField(
         source="custom_domain.domain", read_only=True, default=None
     )
@@ -79,9 +83,11 @@ class MockAPISerializer(serializers.ModelSerializer):
             "description",
             "category",
             "version",
+            "version_label",
             "tags",
             "method",
             "endpoint",
+            "endpoint_type",
             "auth_type",
             "auth_config",
             "headers",
@@ -113,6 +119,8 @@ class MockAPISerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "version",
+            "version_label",
             "deployed_at",
             "deployed_url",
             "custom_domain_name",
@@ -140,6 +148,35 @@ class MockAPISerializer(serializers.ModelSerializer):
         if not value.verified:
             raise serializers.ValidationError("Domain must be verified first")
         return value
+
+    def create(self, validated_data):
+        validated_data["version"] = 1
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        skip = {"request_count_today", "total_requests", "last_hit_at", "deployed_at"}
+        meaningful = {k: v for k, v in validated_data.items() if k not in skip}
+        if meaningful:
+            from .models import APIVersion
+
+            APIVersion.objects.create(
+                api=instance,
+                version=instance.version_label,
+                snapshot={
+                    "name": instance.name,
+                    "method": instance.method,
+                    "endpoint": instance.endpoint,
+                    "version": instance.version,
+                    "responses": instance.responses,
+                    "behavior": instance.behavior,
+                    "rules": instance.rules,
+                    "active_scenario": instance.active_scenario,
+                    "scenarios": instance.scenarios,
+                },
+            )
+            instance.bump_version()
+            validated_data = {**validated_data, "version": instance.version}
+        return super().update(instance, validated_data)
 
 
 class MockAPIVersionSerializer(serializers.ModelSerializer):

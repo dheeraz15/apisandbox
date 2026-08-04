@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { BrandLogo } from "@/components/brand-logo";
 import { Search } from "lucide-react";
 
 const NAV = [
@@ -74,11 +75,8 @@ export function AppShell({
       {/* Top bar — Vercel-style */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-1.5">
-            <div className="flex h-5 w-5 items-center justify-center rounded bg-foreground">
-              <span className="font-mono text-[7px] font-bold text-background">BR</span>
-            </div>
-            <span className="text-sm font-medium">backendruntime</span>
+          <Link href="/" className="flex items-center">
+            <BrandLogo size={20} showWordmark />
           </Link>
           <span className="text-muted-foreground/40">/</span>
           <DropdownMenu>

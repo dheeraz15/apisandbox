@@ -1,35 +1,81 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { CalendarRange, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { MethodBadge } from "@/components/apis/method-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { api, Analytics } from "@/lib/api";
+
+function toLocalInputValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function toISO(local: string) {
+  if (!local) return undefined;
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString();
+}
 
 export function AnalyticsPage({ workspace }: { workspace: string }) {
   const [data, setData] = useState<Analytics | null>(null);
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState<number | null>(7);
+  const [fromLocal, setFromLocal] = useState("");
+  const [toLocal, setToLocal] = useState("");
+  const [customOpen, setCustomOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const rangeLabel = useMemo(() => {
+    if (days) return `Last ${days} days`;
+    if (fromLocal || toLocal) {
+      const a = fromLocal ? new Date(fromLocal).toLocaleString() : "…";
+      const b = toLocal ? new Date(toLocal).toLocaleString() : "now";
+      return `${a} → ${b}`;
+    }
+    return "Custom range";
+  }, [days, fromLocal, toLocal]);
 
   useEffect(() => {
     setLoading(true);
+    const opts =
+      days != null
+        ? { days }
+        : { from: toISO(fromLocal), to: toISO(toLocal) };
     api.workspaces
-      .analytics(workspace, days)
+      .analytics(workspace, opts)
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [workspace, days]);
+  }, [workspace, days, fromLocal, toLocal]);
 
-  if (loading || !data) {
+  const applyCustom = () => {
+    setDays(null);
+    setCustomOpen(false);
+  };
+
+  if (loading && !data) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <PageHeader title="Analytics" description="Traffic, latency, and errors across your endpoints" />
-        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
           Loading…
         </div>
       </div>
     );
   }
+
+  if (!data) return null;
 
   const maxDay = Math.max(...data.by_day.map((d) => d.count), 1);
 
@@ -37,22 +83,81 @@ export function AnalyticsPage({ workspace }: { workspace: string }) {
     <div className="flex flex-1 flex-col overflow-y-auto">
       <PageHeader
         title="Analytics"
-        description={`Last ${days} days · ${data.total_requests.toLocaleString()} requests`}
+        description={`${rangeLabel} · ${data.total_requests.toLocaleString()} requests`}
         action={
-          <div className="flex rounded-md border border-border p-0.5 text-xs">
-            {[7, 14, 30].map((d) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                className={`rounded px-3 py-1.5 transition-colors ${
-                  days === d
-                    ? "bg-accent text-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground"
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-md border border-border p-0.5 text-xs">
+              {[7, 14, 30].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => {
+                    setDays(d);
+                    setFromLocal("");
+                    setToLocal("");
+                  }}
+                  className={`rounded px-3 py-1.5 transition-colors ${
+                    days === d
+                      ? "bg-accent text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {d}d
+                </button>
+              ))}
+            </div>
+            <Popover open={customOpen} onOpenChange={setCustomOpen}>
+              <PopoverTrigger
+                className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors ${
+                  days == null
+                    ? "border-transparent bg-secondary text-secondary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                {d}d
-              </button>
-            ))}
+                <CalendarRange className="h-3.5 w-3.5" />
+                Custom
+              </PopoverTrigger>
+              <PopoverContent className="w-80 space-y-3 p-4" align="end">
+                <p className="text-sm font-medium">Date & time range</p>
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">From</Label>
+                    <Input
+                      type="datetime-local"
+                      className="mt-1 h-9"
+                      value={fromLocal}
+                      onChange={(e) => setFromLocal(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">To</Label>
+                    <Input
+                      type="datetime-local"
+                      className="mt-1 h-9"
+                      value={toLocal}
+                      onChange={(e) => setToLocal(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+                      setFromLocal(toLocalInputValue(start));
+                      setToLocal(toLocalInputValue(end));
+                    }}
+                  >
+                    Last 24h
+                  </Button>
+                  <Button size="sm" className="text-xs" onClick={applyCustom} disabled={!fromLocal}>
+                    Apply
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         }
       />

@@ -61,6 +61,15 @@ class MockAPI(models.Model):
         ("stateful", "Stateful"),
     ]
 
+    ENDPOINT_TYPES = [
+        ("list", "List"),
+        ("detail", "Detail"),
+        ("create", "Create"),
+        ("update", "Update"),
+        ("delete", "Delete"),
+        ("action", "Action"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey(
         Workspace, on_delete=models.CASCADE, related_name="apis"
@@ -92,11 +101,18 @@ class MockAPI(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100, blank=True)
-    version = models.CharField(max_length=20, default="v1")
+    version = models.PositiveIntegerField(default=1, help_text="Auto-incremented revision; does not affect URL.")
     tags = models.JSONField(default=list, blank=True)
 
     method = models.CharField(max_length=10, choices=HTTP_METHODS, default="GET")
     endpoint = models.CharField(max_length=500)
+    endpoint_type = models.CharField(
+        max_length=20,
+        choices=ENDPOINT_TYPES,
+        default="action",
+        blank=True,
+        help_text="Semantic shape: list, detail, create, update, delete, or action.",
+    )
 
     auth_type = models.CharField(max_length=20, choices=AUTH_TYPES, default="none")
     auth_config = models.JSONField(default=dict, blank=True)
@@ -140,12 +156,20 @@ class MockAPI(models.Model):
 
     class Meta:
         ordering = ["-updated_at"]
-        unique_together = ["workspace", "method", "endpoint", "version"]
+        unique_together = ["workspace", "method", "endpoint"]
         verbose_name = "Mock API"
         verbose_name_plural = "Mock APIs"
 
     def __str__(self):
         return f"{self.method} {self.endpoint}"
+
+    @property
+    def version_label(self):
+        return f"v{self.version}"
+
+    def bump_version(self):
+        self.version = int(self.version or 0) + 1
+        return self.version
 
     @property
     def deployed_url(self):

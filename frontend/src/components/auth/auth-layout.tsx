@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function AuthLayout({
   title,
@@ -12,11 +13,8 @@ export function AuthLayout({
   return (
     <div className="grid-bg flex min-h-screen flex-col">
       <header className="flex h-14 items-center px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-foreground">
-            <span className="font-mono text-[9px] font-bold text-background">BR</span>
-          </div>
-          <span className="text-sm font-medium">backendruntime</span>
+        <Link href="/" className="flex items-center">
+          <BrandLogo size={24} showWordmark />
         </Link>
       </header>
       <div className="flex flex-1 items-center justify-center px-4 pb-16">

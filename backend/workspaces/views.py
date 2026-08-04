@@ -81,9 +81,32 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def analytics(self, request, slug=None):
         workspace = self.get_object()
+        from_param = request.query_params.get("from")
+        to_param = request.query_params.get("to")
         days = int(request.query_params.get("days", 7))
-        since = timezone.now() - timedelta(days=days)
+
+        if from_param:
+            try:
+                since = timezone.datetime.fromisoformat(from_param.replace("Z", "+00:00"))
+                if timezone.is_naive(since):
+                    since = timezone.make_aware(since)
+            except ValueError:
+                since = timezone.now() - timedelta(days=days)
+        else:
+            since = timezone.now() - timedelta(days=days)
+
+        until = None
+        if to_param:
+            try:
+                until = timezone.datetime.fromisoformat(to_param.replace("Z", "+00:00"))
+                if timezone.is_naive(until):
+                    until = timezone.make_aware(until)
+            except ValueError:
+                until = None
+
         logs = RequestLog.objects.filter(workspace=workspace, created_at__gte=since)
+        if until:
+            logs = logs.filter(created_at__lte=until)
 
         by_status = list(
             logs.values("status_code")
@@ -143,6 +166,8 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
 
         return Response(
             {
+                "from": since.isoformat(),
+                "to": (until or timezone.now()).isoformat(),
                 "total_requests": total,
                 "error_rate": error_rate,
                 "avg_latency_ms": round(avg_latency, 1),

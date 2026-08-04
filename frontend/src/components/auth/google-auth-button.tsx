@@ -12,7 +12,7 @@ declare global {
         id: {
           initialize: (cfg: Record<string, unknown>) => void;
           renderButton: (el: HTMLElement, cfg: Record<string, unknown>) => void;
-          prompt: () => void;
+          prompt?: () => void;
         };
       };
     };

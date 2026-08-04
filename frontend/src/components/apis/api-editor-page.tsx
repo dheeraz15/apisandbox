@@ -147,18 +147,35 @@ export function APIEditorPage({
             </div>
           )}
           <div>
-            <Label className="text-xs text-muted-foreground">Version</Label>
-            <Input
-              className="mt-1 h-8 font-mono text-xs"
-              value={apiData.version}
-              onBlur={async (e) => {
-                const v = e.target.value.trim() || "v1";
-                if (v === apiData.version) return;
-                setApiData(await api.apis.update(apiId, { version: v }));
-                toast.success("Version updated");
+            <Label className="text-xs text-muted-foreground">Revision</Label>
+            <div className="mt-1 flex h-8 items-center rounded-md border border-border bg-muted/20 px-2 font-mono text-xs text-muted-foreground">
+              {apiData.version_label || `v${apiData.version}`}
+              <span className="ml-2 text-[10px] normal-case tracking-normal">
+                auto on save
+              </span>
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Endpoint type</Label>
+            <Select
+              value={(apiData.endpoint_type as string) || "action"}
+              onValueChange={async (v) => {
+                if (!v || v === apiData.endpoint_type) return;
+                setApiData(await api.apis.update(apiId, { endpoint_type: v }));
+                toast.success("Endpoint type updated");
               }}
-              onChange={(e) => setApiData({ ...apiData, version: e.target.value })}
-            />
+            >
+              <SelectTrigger className="mt-1 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["list", "detail", "create", "update", "delete", "action"].map((t) => (
+                  <SelectItem key={t} value={t} className="capitalize">
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Endpoint path</Label>

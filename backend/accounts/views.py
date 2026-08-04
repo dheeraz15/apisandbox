@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
@@ -35,6 +36,8 @@ def login(request):
     user = authenticate(username=user.username, password=password)
     if not user:
         return Response({"error": "Invalid credentials"}, status=401)
+    user.last_login = timezone.now()
+    user.save(update_fields=["last_login"])
     token, _ = Token.objects.get_or_create(user=user)
     return Response({"token": token.key, "user": UserSerializer(user).data})
 

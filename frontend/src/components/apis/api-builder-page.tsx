@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import {
   LayoutTemplate,
   Settings2,
   Rocket,
+  Search,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { MethodBadge } from "@/components/apis/method-badge";
@@ -31,11 +32,21 @@ import {
   api,
   MockAPI,
   ApiTemplate,
+  EndpointType,
   WorkspaceDomain,
   getEndpointUrl,
   getPlatformMockBase,
   prettyJSON,
 } from "@/lib/api";
+
+const ENDPOINT_TYPES: { value: EndpointType; label: string }[] = [
+  { value: "list", label: "List" },
+  { value: "detail", label: "Detail" },
+  { value: "create", label: "Create" },
+  { value: "update", label: "Update" },
+  { value: "delete", label: "Delete" },
+  { value: "action", label: "Action" },
+];
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -68,14 +79,17 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
   const [datasets, setDatasets] = useState<{ id: string; name: string; data: Record<string, unknown> }[]>([]);
   const [selectedDomain, setSelectedDomain] = useState<string>("platform");
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [templateCategory, setTemplateCategory] = useState("all");
+  const [templateType, setTemplateType] = useState("all");
   const [form, setForm] = useState<Partial<MockAPI>>({
     name: "",
     description: "",
     category: "",
-    version: "v1",
     tags: [],
     method: "POST",
     endpoint: "/",
+    endpoint_type: "action",
     auth_type: "none",
     body_type: "json",
     body_example: {},
@@ -202,8 +216,25 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
     }
   };
 
-  const popular = templates.filter((t) => t.popular);
-  const rest = templates.filter((t) => !t.popular);
+  const categories = useMemo(() => {
+    const set = new Set(templates.map((t) => t.category).filter(Boolean));
+    return Array.from(set).sort();
+  }, [templates]);
+
+  const filteredTemplates = useMemo(() => {
+    const q = templateQuery.trim().toLowerCase();
+    return templates.filter((t) => {
+      if (templateCategory !== "all" && t.category !== templateCategory) return false;
+      if (templateType !== "all" && (t.endpoint_type || "action") !== templateType)
+        return false;
+      if (!q) return true;
+      const hay = `${t.name} ${t.blurb} ${t.category} ${t.endpoint} ${t.method} ${t.endpoint_type || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [templates, templateQuery, templateCategory, templateType]);
+
+  const popular = filteredTemplates.filter((t) => t.popular);
+  const rest = filteredTemplates.filter((t) => !t.popular);
 
   return (
     <>
@@ -278,9 +309,54 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
               <div>
                 <h2 className="text-lg font-semibold tracking-tight">Instant templates</h2>
                 <p className="text-sm text-muted-foreground">
-                  One click loads a production-like mock. Then refine auth, rules, and responses.
+                  One click loads a production-like mock. Filter by category or endpoint type
+                  (list, detail, create, update, delete, action).
                 </p>
               </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="relative min-w-[200px] flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    className="h-9 pl-8"
+                    placeholder="Search templates…"
+                    value={templateQuery}
+                    onChange={(e) => setTemplateQuery(e.target.value)}
+                  />
+                </div>
+                <Select
+                  value={templateCategory}
+                  onValueChange={(v) => v && setTemplateCategory(v)}
+                >
+                  <SelectTrigger className="h-9 w-[160px]">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All categories</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={templateType} onValueChange={(v) => v && setTemplateType(v)}>
+                  <SelectTrigger className="h-9 w-[140px]">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {ENDPOINT_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {filteredTemplates.length} template{filteredTemplates.length === 1 ? "" : "s"}
+              </p>
+              {popular.length > 0 && (
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Popular
@@ -293,10 +369,13 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                       onClick={() => applyTemplate(t.key)}
                       className="rounded-lg border border-border bg-card p-4 text-left transition hover:border-foreground/20 hover:bg-muted/40"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <MethodBadge method={t.method} />
                         <Badge variant="secondary" className="text-[10px]">
                           {t.category}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] capitalize">
+                          {t.endpoint_type || "action"}
                         </Badge>
                       </div>
                       <p className="mt-2 text-sm font-medium">{t.name}</p>
@@ -308,10 +387,11 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                   ))}
                 </div>
               </div>
+              )}
               {rest.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    More
+                    {popular.length > 0 ? "More" : "Templates"}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {rest.map((t) => (
@@ -319,11 +399,14 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                         key={t.key}
                         disabled={generating}
                         onClick={() => applyTemplate(t.key)}
-                        className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/40"
+                        className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/40"
                       >
-                        <span>
+                        <span className="min-w-0">
                           <span className="font-medium">{t.name}</span>
-                          <span className="ml-2 text-xs text-muted-foreground">
+                          <span className="ml-2 text-xs capitalize text-muted-foreground">
+                            {t.endpoint_type || "action"} · {t.category}
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                             {t.blurb}
                           </span>
                         </span>
@@ -332,6 +415,9 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                     ))}
                   </div>
                 </div>
+              )}
+              {filteredTemplates.length === 0 && (
+                <p className="text-sm text-muted-foreground">No templates match your filters.</p>
               )}
             </div>
           )}
@@ -417,6 +503,28 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                     </Select>
                   </div>
                   <div>
+                    <Label>Endpoint type</Label>
+                    <Select
+                      value={(form.endpoint_type as string) || "action"}
+                      onValueChange={(v) => v && update({ endpoint_type: v as EndpointType })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ENDPOINT_TYPES.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      List / detail for reads, create / update / delete for writes, action for
+                      verify-style operations.
+                    </p>
+                  </div>
+                  <div>
                     <Label>Endpoint path</Label>
                     <Input
                       className="font-mono"
@@ -424,18 +532,6 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                       onChange={(e) => update({ endpoint: e.target.value })}
                       placeholder="/v1/users"
                     />
-                  </div>
-                  <div>
-                    <Label>API version</Label>
-                    <Input
-                      className="font-mono"
-                      value={form.version || "v1"}
-                      onChange={(e) => update({ version: e.target.value || "v1" })}
-                      placeholder="v1"
-                    />
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Logged on every hit. Clone or bump when the contract changes.
-                    </p>
                   </div>
                   <div>
                     <Label>Serve on domain</Label>

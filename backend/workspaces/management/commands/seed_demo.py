@@ -86,7 +86,6 @@ class Command(BaseCommand):
             workspace=workspace,
             method="POST",
             endpoint="/account/verify",
-            version="v1",
             defaults={
                 "name": "Account Verification",
                 "description": "Verify account number and return customer info",

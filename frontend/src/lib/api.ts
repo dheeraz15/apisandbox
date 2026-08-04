@@ -114,6 +114,55 @@ export const api = {
           body: JSON.stringify({ id_token: idToken }),
         }
       ),
+    googleLink: (idToken: string) =>
+      fetchAPI<{ ok: boolean; google_linked: boolean; google_email?: string; user: AuthUser }>(
+        "/auth/google/link/",
+        {
+          method: "POST",
+          body: JSON.stringify({ id_token: idToken }),
+        }
+      ),
+    googleUnlink: () =>
+      fetchAPI<{ ok: boolean; google_linked: boolean }>("/auth/google/link/", {
+        method: "DELETE",
+      }),
+    googleLinkStatus: () =>
+      fetchAPI<{ google_linked: boolean; google_email?: string | null }>(
+        "/auth/google/link/"
+      ),
+  },
+  platform: {
+    overview: () => fetchAPI<PlatformOverview>("/platform/overview/"),
+    users: (params?: Record<string, string | number | undefined>) => {
+      const q = new URLSearchParams();
+      Object.entries(params || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== "") q.set(k, String(v));
+      });
+      const qs = q.toString();
+      return fetchAPI<PlatformUsersResponse>(
+        `/platform/users/${qs ? `?${qs}` : ""}`
+      );
+    },
+    logs: (params?: Record<string, string | number | undefined>) => {
+      const q = new URLSearchParams();
+      Object.entries(params || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== "") q.set(k, String(v));
+      });
+      const qs = q.toString();
+      return fetchAPI<PlatformLogsResponse>(
+        `/platform/logs/${qs ? `?${qs}` : ""}`
+      );
+    },
+    analytics: (params?: Record<string, string | number | undefined>) => {
+      const q = new URLSearchParams();
+      Object.entries(params || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== "") q.set(k, String(v));
+      });
+      const qs = q.toString();
+      return fetchAPI<PlatformAnalytics>(
+        `/platform/analytics/${qs ? `?${qs}` : ""}`
+      );
+    },
   },
   workspaces: {
     list: async () => unwrapList(await fetchAPI<Workspace[] | PaginatedResponse<Workspace>>("/workspaces/")),
@@ -161,8 +210,17 @@ export const api = {
         ),
     },
     stats: (slug: string) => fetchAPI<WorkspaceStats>(`/workspaces/${slug}/stats/`),
-    analytics: (slug: string, days = 7) =>
-      fetchAPI<Analytics>(`/workspaces/${slug}/analytics/?days=${days}`),
+    analytics: (
+      slug: string,
+      opts: { days?: number; from?: string; to?: string } = {}
+    ) => {
+      const q = new URLSearchParams();
+      if (opts.from) q.set("from", opts.from);
+      if (opts.to) q.set("to", opts.to);
+      if (!opts.from && opts.days) q.set("days", String(opts.days));
+      if (!opts.from && !opts.days) q.set("days", "7");
+      return fetchAPI<Analytics>(`/workspaces/${slug}/analytics/?${q.toString()}`);
+    },
     activity: (slug: string) => fetchAPI<RequestLog[]>(`/workspaces/${slug}/activity/`),
     variables: {
       list: (slug: string) =>
@@ -281,12 +339,29 @@ export const api = {
       }),
   },
   datasets: {
-    list: async (workspace: string) =>
-      unwrapList(
+    list: async (workspace: string, q?: string) => {
+      const params = new URLSearchParams({ workspace });
+      if (q) params.set("q", q);
+      return unwrapList(
         await fetchAPI<Dataset[] | PaginatedResponse<Dataset>>(
-          `/datasets/?workspace=${workspace}`
+          `/datasets/?${params.toString()}`
         )
-      ),
+      );
+    },
+    catalog: (params?: { q?: string; category?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.q) q.set("q", params.q);
+      if (params?.category) q.set("category", params.category);
+      const qs = q.toString();
+      return fetchAPI<DatasetCatalogResponse>(
+        `/datasets/catalog/${qs ? `?${qs}` : ""}`
+      );
+    },
+    fromCatalog: (data: { key: string; workspace: string; name?: string }) =>
+      fetchAPI<Dataset>("/datasets/from-catalog/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
     create: (data: Partial<Dataset> & { workspace: string }) =>
       fetchAPI<Dataset>("/datasets/", {
         method: "POST",
@@ -389,6 +464,90 @@ export interface AuthUser {
   email: string;
   name: string;
   date_joined?: string;
+  last_login?: string | null;
+  is_staff?: boolean;
+  is_superuser?: boolean;
+  google_linked?: boolean;
+  google_email?: string | null;
+}
+
+export interface PlatformOverview {
+  users_total: number;
+  users_staff: number;
+  users_active_7d: number;
+  workspaces_total: number;
+  members_total: number;
+  requests_total: number;
+  requests_24h: number;
+  requests_7d: number;
+  avg_latency_24h: number;
+}
+
+export interface PlatformUserRow {
+  id: number;
+  email: string;
+  name: string;
+  is_staff: boolean;
+  is_superuser: boolean;
+  is_active: boolean;
+  date_joined: string;
+  last_login: string | null;
+  google_linked: boolean;
+  workspace_count: number;
+  workspaces: { slug: string; name: string; role: string }[];
+  request_count: number;
+}
+
+export interface PlatformUsersResponse {
+  total: number;
+  offset: number;
+  limit: number;
+  results: PlatformUserRow[];
+}
+
+export interface PlatformLogRow {
+  id: string;
+  created_at: string;
+  method: string;
+  path: string;
+  status_code: number;
+  latency_ms: number;
+  client_ip: string | null;
+  request_id: string;
+  trace_id: string;
+  api_version: string;
+  domain_host: string;
+  workspace: string | null;
+  workspace_name: string | null;
+  api_name: string | null;
+  finding: string;
+}
+
+export interface PlatformLogsResponse {
+  total: number;
+  offset: number;
+  limit: number;
+  results: PlatformLogRow[];
+}
+
+export interface PlatformAnalytics {
+  from: string;
+  to: string;
+  total_requests: number;
+  error_rate: number;
+  avg_latency_ms: number;
+  by_status: { status_code: number; count: number }[];
+  by_method: { method: string; count: number }[];
+  by_workspace: {
+    workspace_id: string;
+    workspace__slug: string;
+    workspace__name: string;
+    count: number;
+    avg_latency: number;
+  }[];
+  by_day: { day: string; count: number }[];
+  by_hour: { hour: string; count: number }[];
+  top_paths: { path: string; method: string; count: number }[];
 }
 
 export interface Workspace {
@@ -461,6 +620,8 @@ export interface WorkspaceStats {
 }
 
 export interface Analytics {
+  from?: string;
+  to?: string;
   total_requests: number;
   error_rate: number;
   avg_latency_ms: number;
@@ -521,8 +682,10 @@ export interface MockAPIListItem {
   name: string;
   method: string;
   endpoint: string;
+  endpoint_type?: EndpointType | string;
   category: string;
-  version: string;
+  version: number;
+  version_label?: string;
   active_scenario: string;
   is_deployed: boolean;
   deployed_url: string;
@@ -545,10 +708,12 @@ export interface MockAPI {
   name: string;
   description: string;
   category: string;
-  version: string;
+  version: number;
+  version_label?: string;
   tags: string[];
   method: string;
   endpoint: string;
+  endpoint_type?: EndpointType | string;
   auth_type: string;
   auth_config: Record<string, unknown>;
   headers: ApiField[];
@@ -579,6 +744,14 @@ export interface MockAPI {
   updated_at: string;
 }
 
+export type EndpointType =
+  | "list"
+  | "detail"
+  | "create"
+  | "update"
+  | "delete"
+  | "action";
+
 export interface ApiTemplate {
   key: string;
   name: string;
@@ -586,9 +759,25 @@ export interface ApiTemplate {
   category: string;
   method: string;
   endpoint: string;
+  endpoint_type?: EndpointType;
   icon: string;
   popular: boolean;
   blurb: string;
+}
+
+export interface DatasetCatalogItem {
+  key: string;
+  name: string;
+  category: string;
+  description: string;
+  tags: string[];
+  record_count: number;
+  preview?: unknown;
+}
+
+export interface DatasetCatalogResponse {
+  categories: string[];
+  results: DatasetCatalogItem[];
 }
 
 export interface ApiField {

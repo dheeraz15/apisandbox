@@ -156,6 +156,11 @@ export function APIsPage({ workspace }: APIsPageProps) {
                 <p className="truncate text-sm font-medium">{apiItem.name}</p>
                 <p className="truncate font-mono text-xs text-muted-foreground">
                   {apiItem.endpoint}
+                  {apiItem.endpoint_type ? (
+                    <span className="ml-2 capitalize text-muted-foreground/70">
+                      · {apiItem.endpoint_type}
+                    </span>
+                  ) : null}
                 </p>
               </Link>
               <span className="truncate text-xs text-muted-foreground">

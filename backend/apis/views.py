@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Q
 from django.utils import timezone
 import json
 from .models import MockAPI, Collection, Dataset, APIVersion
@@ -85,7 +86,7 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         # Snapshot current definition for this version label
         APIVersion.objects.create(
             api=api,
-            version=api.version or "v1",
+            version=api.version_label,
             snapshot=MockAPISerializer(api).data,
         )
         return Response(MockAPISerializer(api).data)
@@ -165,7 +166,6 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         workspace_id = request.data.get("workspace")
         result = dict(tpl)
         result["tags"] = list(result.get("tags", [])) + ["template"]
-        result["version"] = result.get("version", "v1")
         result["auth_type"] = result.get("auth_type", "none")
         result["state_mode"] = result.get("state_mode", "stateless")
         result["active_scenario"] = result.get("active_scenario", "default")
@@ -281,4 +281,49 @@ class DatasetViewSet(viewsets.ModelViewSet):
         workspace_slug = self.request.query_params.get("workspace")
         if workspace_slug:
             qs = qs.filter(workspace__slug=workspace_slug)
+        q = (self.request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(description__icontains=q))
         return qs
+
+    @action(detail=False, methods=["get"])
+    def catalog(self, request):
+        from .dataset_catalog import catalog_categories, list_dataset_catalog
+
+        q = request.query_params.get("q", "")
+        category = request.query_params.get("category", "")
+        return Response(
+            {
+                "categories": catalog_categories(),
+                "results": list_dataset_catalog(q=q, category=category),
+            }
+        )
+
+    @action(detail=False, methods=["post"], url_path="from-catalog")
+    def from_catalog(self, request):
+        from workspaces.models import Workspace
+        from .dataset_catalog import get_catalog_dataset
+
+        key = (request.data.get("key") or "").strip()
+        workspace_id = request.data.get("workspace")
+        if not key:
+            return Response({"error": "key is required"}, status=400)
+        if not workspace_id:
+            return Response({"error": "workspace is required"}, status=400)
+
+        catalog = get_catalog_dataset(key)
+        if not catalog:
+            return Response({"error": "Unknown catalog dataset"}, status=404)
+
+        workspace = Workspace.objects.filter(pk=workspace_id).first()
+        if not workspace:
+            return Response({"error": "Workspace not found"}, status=404)
+
+        name = request.data.get("name") or catalog["name"]
+        ds = Dataset.objects.create(
+            workspace=workspace,
+            name=name,
+            description=catalog.get("description", ""),
+            data=catalog.get("data") or {},
+        )
+        return Response(DatasetSerializer(ds).data, status=201)

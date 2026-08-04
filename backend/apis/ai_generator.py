@@ -2,7 +2,10 @@
 
 import random
 
+from .template_library import EXTRA_KEYWORDS, EXTRA_META, EXTRA_TEMPLATES
 
+
+# Existing templates keep their bodies below; endpoint_type is inferred or set explicitly.
 API_TEMPLATES = {
     "account_verification": {
         "name": "Account Verification",
@@ -511,6 +514,37 @@ API_TEMPLATES = {
 }
 
 
+# Merge expanded catalog
+API_TEMPLATES.update(EXTRA_TEMPLATES)
+
+
+# Explicit endpoint types for legacy templates
+_LEGACY_ENDPOINT_TYPES = {
+    "account_verification": "action",
+    "customer_lookup": "detail",
+    "credit_card_eligibility": "action",
+    "loan_eligibility": "action",
+    "kyc_verification": "action",
+    "ocr": "action",
+    "payment": "action",
+    "aml_screening": "action",
+    "pep_check": "action",
+    "insurance_quote": "action",
+    "passport_verify": "action",
+    "tax_id_lookup": "action",
+    "telecom_sim": "detail",
+    "merchant_onboard": "create",
+    "wallet_balance": "detail",
+    "credit_bureau": "action",
+    "government_registry": "detail",
+    "echo": "action",
+}
+
+for _k, _etype in _LEGACY_ENDPOINT_TYPES.items():
+    if _k in API_TEMPLATES and "endpoint_type" not in API_TEMPLATES[_k]:
+        API_TEMPLATES[_k]["endpoint_type"] = _etype
+
+
 TEMPLATE_META = {
     "account_verification": {
         "icon": "building",
@@ -556,6 +590,8 @@ TEMPLATE_META = {
     "echo": {"icon": "repeat", "popular": False, "blurb": "Echo request for debugging"},
 }
 
+TEMPLATE_META.update(EXTRA_META)
+
 
 KEYWORD_MAP = {
     "account": "account_verification",
@@ -592,6 +628,41 @@ KEYWORD_MAP = {
     "echo": "echo",
 }
 
+KEYWORD_MAP.update(EXTRA_KEYWORDS)
+
+
+def infer_endpoint_type(tpl: dict) -> str:
+    if tpl.get("endpoint_type"):
+        return tpl["endpoint_type"]
+    method = (tpl.get("method") or "GET").upper()
+    endpoint = tpl.get("endpoint") or ""
+    if "{" in endpoint and method == "GET":
+        return "detail"
+    if method == "GET":
+        return "list"
+    if method == "DELETE":
+        return "delete"
+    if method in ("PUT", "PATCH"):
+        return "update"
+    action_tokens = (
+        "verify",
+        "screen",
+        "check",
+        "eligibility",
+        "process",
+        "quote",
+        "lookup",
+        "echo",
+        "login",
+        "send",
+        "track",
+    )
+    if method == "POST" and any(tok in endpoint.lower() for tok in action_tokens):
+        return "action"
+    if method == "POST":
+        return "create"
+    return "action"
+
 
 def list_templates() -> list:
     items = []
@@ -605,18 +676,23 @@ def list_templates() -> list:
                 "category": tpl.get("category"),
                 "method": tpl.get("method"),
                 "endpoint": tpl.get("endpoint"),
+                "endpoint_type": infer_endpoint_type(tpl),
                 "icon": meta.get("icon", "globe"),
                 "popular": meta.get("popular", False),
                 "blurb": meta.get("blurb", tpl.get("description", "")),
             }
         )
-    items.sort(key=lambda x: (not x["popular"], x["name"] or ""))
+    items.sort(key=lambda x: (not x["popular"], x["category"] or "", x["name"] or ""))
     return items
 
 
 def get_template(key: str) -> dict | None:
     tpl = API_TEMPLATES.get(key)
-    return dict(tpl) if tpl else None
+    if not tpl:
+        return None
+    result = dict(tpl)
+    result["endpoint_type"] = infer_endpoint_type(result)
+    return result
 
 
 def generate_api_from_prompt(prompt: str) -> dict:
@@ -634,12 +710,12 @@ def generate_api_from_prompt(prompt: str) -> dict:
         result = _generate_generic_from_prompt(prompt)
 
     result["tags"] = list(result.get("tags", [])) + ["ai-generated"]
-    result["version"] = "v1"
     result["auth_type"] = result.get("auth_type", "none")
     result["state_mode"] = result.get("state_mode", "stateless")
     result["active_scenario"] = result.get("active_scenario", "default")
     result["behavior"] = result.get("behavior", {"delay_ms": random.randint(80, 300)})
     result["cors_enabled"] = True
+    result["endpoint_type"] = infer_endpoint_type(result)
     result["scenarios"] = result.get("scenarios") or [
         {"name": "default", "label": "Default"},
         {"name": "error", "label": "Error", "responses": [
@@ -679,22 +755,50 @@ def _generate_generic_from_prompt(prompt: str) -> dict:
             resource = nouns[0] if nouns[0] != "mock" else nouns[1] if len(nouns) > 1 else "resource"
 
     endpoint = f"/{resource.replace('_', '-')}"
-    if method == "GET" and "id" in prompt_lower or "by id" in prompt_lower:
-        endpoint = f"/{resource.replace('_', '-')}/{{id}}"
+    endpoint_type = "action"
+    if method == "GET":
+        if "id" in prompt_lower or "by id" in prompt_lower or "detail" in prompt_lower:
+            endpoint = f"/{resource.replace('_', '-')}/{{id}}"
+            endpoint_type = "detail"
+        else:
+            endpoint_type = "list"
+    elif method == "DELETE":
+        endpoint_type = "delete"
+        if "{" not in endpoint:
+            endpoint = f"/{resource.replace('_', '-')}/{{id}}"
+    elif method in ("PUT", "PATCH"):
+        endpoint_type = "update"
+        if "{" not in endpoint:
+            endpoint = f"/{resource.replace('_', '-')}/{{id}}"
+    elif method == "POST":
+        if any(w in prompt_lower for w in ["verify", "check", "screen", "login", "send"]):
+            endpoint_type = "action"
+        else:
+            endpoint_type = "create"
 
-    # Extract field hints from prompt
     fields = _extract_fields_from_prompt(prompt)
     body_example = {f: _sample_value(f) for f in fields[:5]} if fields else {"input": "value"}
-    response_body = {
-        "id": "{{uuid}}",
-        "status": "success",
-        "createdAt": "{{timestamp}}",
-    }
-    for f in fields[:6]:
-        response_body[f] = f"{{{{request.body.{f}}}}}" if method != "GET" else f"{{{{faker.{_faker_for(f)}}}}}"
 
-    if not fields:
-        response_body["data"] = {"message": "{{faker.sentence}}", "value": "{{randomInt}}"}
+    if endpoint_type == "list":
+        item = {"id": "{{uuid}}"}
+        for f in fields[:6]:
+            item[f] = f"{{{{faker.{_faker_for(f)}}}}}"
+        if not fields:
+            item["name"] = "{{faker.name}}"
+            item["value"] = "{{randomInt}}"
+        response_body = {"items": [item], "total": 1, "page": 1}
+    else:
+        response_body = {
+            "id": "{{uuid}}",
+            "status": "success",
+            "createdAt": "{{timestamp}}",
+        }
+        for f in fields[:6]:
+            response_body[f] = (
+                f"{{{{request.body.{f}}}}}" if method != "GET" else f"{{{{faker.{_faker_for(f)}}}}}"
+            )
+        if not fields:
+            response_body["data"] = {"message": "{{faker.sentence}}", "value": "{{randomInt}}"}
 
     name = _extract_name(prompt)
     category = _guess_category(prompt_lower)
@@ -705,6 +809,7 @@ def _generate_generic_from_prompt(prompt: str) -> dict:
         "category": category,
         "method": method,
         "endpoint": endpoint,
+        "endpoint_type": endpoint_type,
         "body_type": "json",
         "body_example": body_example if method in ("POST", "PUT", "PATCH") else {},
         "responses": [

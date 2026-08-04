@@ -12,11 +12,11 @@ import {
   Rocket,
   ScrollText,
   Settings,
-  Zap,
-  Webhook,
   BarChart3,
+  Webhook,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/brand-logo";
 
 const NAV_ITEMS = [
   { href: "", label: "Dashboard", icon: LayoutDashboard },
@@ -43,9 +43,7 @@ export function Sidebar({ workspace }: SidebarProps) {
   return (
     <aside className="flex h-screen w-60 flex-col border-r border-border bg-sidebar">
       <div className="flex h-14 items-center gap-2.5 border-b border-border px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-          <Zap className="h-4 w-4 text-primary-foreground" />
-        </div>
+        <BrandLogo size={28} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold leading-none tracking-tight">
             backendruntime
@@ -82,7 +80,13 @@ export function Sidebar({ workspace }: SidebarProps) {
         })}
       </nav>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border p-3 space-y-2">
+        <Link
+          href="/platform"
+          className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground"
+        >
+          Platform admin
+        </Link>
         <div className="rounded-md bg-muted/50 px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Sandbox URL

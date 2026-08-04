@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import { DOC_SECTIONS } from "@/lib/docs-content";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function DocsShell({
   activeSlug,
@@ -29,9 +30,7 @@ export function DocsShell({
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <div className="flex h-6 w-6 items-center justify-center rounded-[5px] bg-foreground">
-              <span className="font-mono text-[9px] font-bold text-background">BR</span>
-            </div>
+            <BrandLogo size={24} />
             <span className="text-sm font-medium">Docs</span>
           </Link>
           <div className="relative w-full max-w-md">

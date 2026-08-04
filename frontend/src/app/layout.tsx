@@ -14,9 +14,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "backendruntime — Enterprise API validator & mock infrastructure",
+  title: {
+    default: "backendruntime — Enterprise Integration Sandbox",
+    template: "%s — backendruntime",
+  },
   description:
-    "Enterprise infrastructure for reliable pre-backend mocking. Validate contracts, build mock APIs, and inspect traffic before the real backend ships.",
+    "Enterprise Integration Sandbox. Deploy production-shaped mock APIs, custom domains, rules, and traffic analytics before the real backend ships.",
+  keywords: [
+    "mock API",
+    "enterprise integration sandbox",
+    "API mock server",
+    "OpenAPI mock",
+    "custom domain API",
+    "backendruntime",
+  ],
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png" }],
+  },
+  openGraph: {
+    title: "backendruntime — Enterprise Integration Sandbox",
+    description:
+      "Deploy production-shaped mock APIs, custom domains, and traffic analytics before the real backend ships.",
+    images: [{ url: "/logo.png", width: 980, height: 980, alt: "backendruntime" }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

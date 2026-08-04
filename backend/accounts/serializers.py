@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
+from .models import GoogleAccount
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -33,7 +34,26 @@ class LoginSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="first_name", read_only=True)
+    google_linked = serializers.SerializerMethodField()
+    google_email = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "email", "name", "date_joined"]
+        fields = [
+            "id",
+            "email",
+            "name",
+            "date_joined",
+            "last_login",
+            "is_staff",
+            "is_superuser",
+            "google_linked",
+            "google_email",
+        ]
+
+    def get_google_linked(self, obj):
+        return GoogleAccount.objects.filter(user=obj).exists()
+
+    def get_google_email(self, obj):
+        acc = GoogleAccount.objects.filter(user=obj).first()
+        return acc.email if acc else None

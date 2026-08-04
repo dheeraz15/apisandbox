@@ -31,6 +31,7 @@ import {
   WorkspaceDomain,
   getPlatformMockBase,
 } from "@/lib/api";
+import { GoogleLinkCard } from "@/components/settings/google-link-card";
 
 const ROLES = ["manager", "editor", "viewer"] as const;
 
@@ -159,6 +160,8 @@ export function SettingsPage({ workspace }: { workspace: string }) {
             {ws?.my_role && <Badge variant="secondary">Your role: {ws.my_role}</Badge>}
           </div>
         </section>
+
+        <GoogleLinkCard />
 
         <section className="rounded-lg border border-border p-4 space-y-4">
           <div>
