@@ -147,6 +147,34 @@ export function APIEditorPage({
             </div>
           )}
           <div>
+            <Label className="text-xs text-muted-foreground">Version</Label>
+            <Input
+              className="mt-1 h-8 font-mono text-xs"
+              value={apiData.version}
+              onBlur={async (e) => {
+                const v = e.target.value.trim() || "v1";
+                if (v === apiData.version) return;
+                setApiData(await api.apis.update(apiId, { version: v }));
+                toast.success("Version updated");
+              }}
+              onChange={(e) => setApiData({ ...apiData, version: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Endpoint path</Label>
+            <Input
+              className="mt-1 h-8 font-mono text-xs"
+              value={apiData.endpoint}
+              onBlur={async (e) => {
+                const endpoint = e.target.value.trim() || "/";
+                if (endpoint === apiData.endpoint) return;
+                setApiData(await api.apis.update(apiId, { endpoint }));
+                toast.success("Endpoint updated");
+              }}
+              onChange={(e) => setApiData({ ...apiData, endpoint: e.target.value })}
+            />
+          </div>
+          <div>
             <Label className="text-xs text-muted-foreground">Domain</Label>
             <Select
               value={apiData.custom_domain || "platform"}

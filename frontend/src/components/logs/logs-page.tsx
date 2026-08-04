@@ -162,7 +162,10 @@ export function LogsPage({ workspace }: LogsPageProps) {
               <div className="flex flex-wrap gap-2">
                 <MethodBadge method={selected.method} />
                 <Badge variant="secondary">{selected.status_code}</Badge>
-                {selected.api_name && <Badge variant="outline">{selected.api_name}</Badge>}
+                    {selected.api_name && <Badge variant="outline">{selected.api_name}</Badge>}
+                {selected.api_version && (
+                  <Badge variant="outline">{selected.api_version}</Badge>
+                )}
                 {selected.collection_name && (
                   <Badge variant="outline">{selected.collection_name}</Badge>
                 )}
@@ -173,6 +176,11 @@ export function LogsPage({ workspace }: LogsPageProps) {
                 )}
               </div>
               <MetaRow label="Path" value={selected.path} mono />
+              <MetaRow label="Version" value={selected.api_version || "v1"} />
+              <MetaRow label="Request ID" value={selected.request_id || "—"} mono />
+              <MetaRow label="Trace ID" value={selected.trace_id || "—"} mono />
+              <MetaRow label="Span ID" value={selected.span_id || "—"} mono />
+              <MetaRow label="Host" value={selected.domain_host || "—"} mono />
               <MetaRow label="Scenario" value={selected.scenario_used || "—"} />
               <MetaRow label="IP" value={selected.client_ip || "—"} />
               <MetaRow label="Latency" value={`${selected.latency_ms}ms`} />

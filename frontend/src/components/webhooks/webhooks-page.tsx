@@ -52,18 +52,22 @@ export function WebhooksPage({ workspace }: { workspace: string }) {
 
   const [inName, setInName] = useState("");
   const [inSlug, setInSlug] = useState("");
+  const [inDomain, setInDomain] = useState("platform");
+  const [domains, setDomains] = useState<{ id: string; domain: string; verified: boolean }[]>([]);
   const [outName, setOutName] = useState("");
   const [outUrl, setOutUrl] = useState("");
 
   const load = async () => {
-    const [ws, inc, out] = await Promise.all([
+    const [ws, inc, out, doms] = await Promise.all([
       api.workspaces.get(workspace),
       api.webhooks.incoming.list(workspace),
       api.webhooks.outgoing.list(workspace),
+      api.workspaces.domains.list(workspace).catch(() => []),
     ]);
     setWorkspaceId(ws.id);
     setIncoming(inc);
     setOutgoing(out);
+    setDomains(doms.filter((d) => d.verified));
   };
 
   useEffect(() => {
@@ -151,10 +155,12 @@ export function WebhooksPage({ workspace }: { workspace: string }) {
         workspace: workspaceId,
         name: inName,
         slug: inSlug,
+        custom_domain: inDomain === "platform" ? null : inDomain,
       });
       toast.success("Webhook ready to receive");
       setInName("");
       setInSlug("");
+      setInDomain("platform");
       await load();
       selectIncoming(hook);
     } catch (e) {
@@ -228,6 +234,26 @@ export function WebhooksPage({ workspace }: { workspace: string }) {
                   }
                   placeholder="stripe"
                 />
+                <Select value={inDomain} onValueChange={(v) => v && setInDomain(v)}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue>
+                      {(value: string | null) => {
+                        if (!value || value === "platform") return "Platform domain";
+                        return domains.find((d) => d.id === value)?.domain || "Domain";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="platform" label="Platform domain">
+                      Platform domain
+                    </SelectItem>
+                    {domains.map((d) => (
+                      <SelectItem key={d.id} value={d.id} label={d.domain}>
+                        {d.domain}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button className="w-full h-8" size="sm" onClick={createIncoming}>
                   <Plus className="mr-1.5 h-3.5 w-3.5" /> Create receiver
                 </Button>

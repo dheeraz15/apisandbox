@@ -74,6 +74,7 @@ class MockAPISerializer(serializers.ModelSerializer):
             "collection",
             "custom_domain",
             "custom_domain_name",
+            "dataset",
             "name",
             "description",
             "category",

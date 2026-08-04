@@ -106,6 +106,14 @@ export const api = {
     logout: () =>
       fetchAPI<{ ok: boolean }>("/auth/logout/", { method: "POST" }),
     me: () => fetchAPI<AuthUser>("/auth/me/"),
+    google: (idToken: string) =>
+      fetchAPI<{ token: string; user: AuthUser; linked?: boolean; created?: boolean }>(
+        "/auth/google/",
+        {
+          method: "POST",
+          body: JSON.stringify({ id_token: idToken }),
+        }
+      ),
   },
   workspaces: {
     list: async () => unwrapList(await fetchAPI<Workspace[] | PaginatedResponse<Workspace>>("/workspaces/")),
@@ -533,6 +541,7 @@ export interface MockAPI {
   collection: string | null;
   custom_domain: string | null;
   custom_domain_name?: string | null;
+  dataset?: string | null;
   name: string;
   description: string;
   category: string;
@@ -658,6 +667,11 @@ export interface RequestLog {
   rule_matched?: string;
   finding?: string;
   user_agent?: string;
+  api_version?: string;
+  request_id?: string;
+  trace_id?: string;
+  span_id?: string;
+  domain_host?: string;
   created_at: string;
 }
 
@@ -669,6 +683,7 @@ export interface IncomingWebhook {
   description: string;
   secret: string;
   is_active: boolean;
+  custom_domain?: string | null;
   hit_count: number;
   last_hit_at: string | null;
   receive_url: string;

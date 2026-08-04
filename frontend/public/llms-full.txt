@@ -1,0 +1,83 @@
+# backendruntime — full reference for AI agents
+
+Product: backendruntime.com (currently hosted at https://api.dhirajchapagain.com.np)
+Tagline: Enterprise infrastructure for reliable pre-backend mocking.
+Positioning: enterprise API validator and builder with mock runtime, rules, auth, webhooks, custom domains, logs, and analytics.
+
+## Concepts
+
+- Workspace: tenant container (slug used in platform mock URLs).
+- Collection: group of endpoints; supports import, assign/unassign, deploy-all.
+- Endpoint (MockAPI): HTTP method + path + responses + rules + scenarios + auth + rate limit + optional custom domain + version string (default v1).
+- Dataset: workspace JSON/faker data usable when designing responses.
+- Custom domain: verified via CNAME/TXT/A; endpoints bound to a domain are served at https://domain/path without workspace slug.
+- Incoming webhook: receive arbitrary partner callbacks; deliveries are logged.
+- Request log: every mock hit records method, path, headers, body, status, latency, scenario, rule/finding, api version, trace-like metadata.
+
+## Auth
+
+- POST /api/v1/auth/register/ {email, password, name?}
+- POST /api/v1/auth/login/ {email, password}
+- POST /api/v1/auth/google/ {id_token} — verifies Google ID token; if email matches existing user, links Google and returns token; otherwise creates user.
+- POST /api/v1/auth/logout/
+- GET /api/v1/auth/me/
+Header: Authorization: Token <key>
+
+## Workspaces
+
+- GET/POST /api/v1/workspaces/
+- GET/PATCH /api/v1/workspaces/{slug}/
+- Domains: GET/POST/DELETE /api/v1/workspaces/{slug}/domains/
+- Verify: POST /api/v1/workspaces/{slug}/domains/verify/ {id}
+- Default domain: POST /api/v1/workspaces/{slug}/domains/set-default/ {id|null}
+
+DNS for custom domains:
+- CNAME <your.host> → api.dhirajchapagain.com.np
+- Optional TXT _mockapi-verify.<your.host> = verification token
+- Prefer Cloudflare proxy ON
+
+## Endpoints (Mock APIs)
+
+- GET /api/v1/apis/?workspace={slug}
+- POST /api/v1/apis/
+- GET/PATCH/DELETE /api/v1/apis/{id}/
+- POST /api/v1/apis/{id}/deploy/
+- POST /api/v1/apis/{id}/undeploy/
+- POST /api/v1/apis/{id}/clone/
+- POST /api/v1/apis/generate/ — deterministic “AI-like” generator (no external LLM)
+- POST /api/v1/apis/import_spec/ — Postman / OpenAPI / curl / JSON
+- Versions: GET/POST /api/v1/apis/{id}/versions/
+
+Runtime matching: deployed + method + path (+ custom domain binding). Wrong method returns 405 with allowed_methods.
+
+## Collections / datasets / webhooks / logs
+
+- /api/v1/collections/ (+ assign, unassign, deploy_all, apis)
+- /api/v1/datasets/
+- /api/v1/webhooks/incoming/ (+ deliveries, export)
+- /api/v1/webhooks/outgoing/
+- Workspace activity/analytics under /api/v1/workspaces/{slug}/analytics/
+
+## Observability
+
+Logs aim for OpenTelemetry-style inspection: trace id / span-like request id, api version, latency_ms, status, scenario, rule finding, request/response payloads, client IP, user agent. Use the Logs UI or RequestLog API fields.
+
+## Public pages
+
+- /docs — human docs with search
+- /docs/openapi.json — OpenAPI
+- /llms.txt — this index
+- /llms-full.txt — this file
+- /pricing — coming soon
+- /terms — Terms of Service
+- /privacy — Privacy Policy
+
+## Example mock call
+
+POST https://api.dhirajchapagain.com.np/api/demo/account/verify
+Content-Type: application/json
+
+Custom domain example:
+POST https://test.example.com/aml/screen
+Content-Type: application/json
+{}

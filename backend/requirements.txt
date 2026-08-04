@@ -6,3 +6,5 @@ faker>=24.0
 python-dotenv>=1.0
 gunicorn>=22.0
 dnspython>=2.6
+google-auth>=2.29
+requests>=2.31

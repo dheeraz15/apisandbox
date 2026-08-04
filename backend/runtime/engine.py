@@ -350,7 +350,25 @@ class MockAPIEngine:
         finding,
         query_params,
     ):
+        import uuid as uuid_lib
         from logs.models import RequestLog
+
+        headers = headers or {}
+        request_id = (
+            headers.get("X-Request-Id")
+            or headers.get("x-request-id")
+            or headers.get("X-Request-ID")
+            or str(uuid_lib.uuid4())
+        )
+        trace_id = (
+            headers.get("traceparent", "").split("-")[1]
+            if headers.get("traceparent", "").count("-") >= 2
+            else headers.get("X-Trace-Id")
+            or headers.get("x-trace-id")
+            or request_id.replace("-", "")[:32]
+        )
+        span_id = str(uuid_lib.uuid4()).replace("-", "")[:16]
+        domain_host = headers.get("Host") or headers.get("host") or ""
 
         RequestLog.objects.create(
             workspace=self.api.workspace,
@@ -367,14 +385,24 @@ class MockAPIEngine:
                 if isinstance(response_body, (dict, list))
                 else {"raw": str(response_body)}
             ),
-            response_headers=response_headers or {},
+            response_headers={
+                **(response_headers or {}),
+                "X-Request-Id": request_id,
+                "X-Trace-Id": trace_id,
+                "X-Span-Id": span_id,
+                "X-API-Version": self.api.version or "v1",
+            },
             latency_ms=latency,
             client_ip=ip or None,
             scenario_used=self.api.active_scenario or "",
             rule_matched=finding if finding and finding.startswith("rule:") else "",
             finding=finding or "",
-            user_agent=(headers or {}).get("User-Agent", "")
-            or (headers or {}).get("user-agent", ""),
+            user_agent=headers.get("User-Agent", "") or headers.get("user-agent", ""),
+            api_version=self.api.version or "v1",
+            request_id=request_id,
+            trace_id=trace_id,
+            span_id=span_id,
+            domain_host=domain_host[:255],
         )
 
     def _fire_outgoing_webhooks(self, response_body, status_code):

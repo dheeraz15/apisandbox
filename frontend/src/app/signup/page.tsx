@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, setAuthToken } from "@/lib/api";
 import { AuthLayout } from "@/components/auth/auth-layout";
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,11 +76,26 @@ export default function SignupPage() {
         <Button type="submit" className="h-10 w-full" disabled={loading}>
           {loading ? "Creating account…" : "Continue"}
         </Button>
+        <div className="relative py-2">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">or</span>
+          </div>
+        </div>
+        <GoogleAuthButton label="Sign up with Google" />
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link href="/login" className="text-foreground underline-offset-4 hover:underline">
             Log in
           </Link>
+        </p>
+        <p className="text-center text-[11px] text-muted-foreground">
+          By continuing you agree to our{" "}
+          <Link href="/terms" className="underline-offset-4 hover:underline">Terms</Link>
+          {" "}and{" "}
+          <Link href="/privacy" className="underline-offset-4 hover:underline">Privacy</Link>.
         </p>
       </form>
     </AuthLayout>

@@ -54,11 +54,47 @@ class CustomDomainMiddleware(MiddlewareMixin):
         if any(path.startswith(p) for p in MANAGEMENT_PREFIXES):
             return None
 
+        # Custom-domain webhook inbox: /hooks/{slug}
+        if path.startswith("/hooks/"):
+            return self._handle_custom_domain_webhook(request, domain, path)
+
         # Legacy path still works: /api/{workspace}/...
         if path.startswith("/api/") and not path.startswith("/api/v1/"):
             return None
 
         return self._handle_custom_domain_mock(request, domain, path)
+
+    def _handle_custom_domain_webhook(self, request, domain, path):
+        from logs.models import IncomingWebhook
+        from logs.views import WebhookReceiverView
+
+        slug = path[len("/hooks/") :].strip("/").split("/")[0]
+        if not slug:
+            return JsonResponse({"error": "Webhook slug required"}, status=404)
+        hook = IncomingWebhook.objects.filter(
+            workspace=domain.workspace,
+            slug=slug,
+            is_active=True,
+            custom_domain=domain,
+        ).first()
+        if not hook:
+            # Also accept workspace hooks without domain binding on this host
+            hook = IncomingWebhook.objects.filter(
+                workspace=domain.workspace,
+                slug=slug,
+                is_active=True,
+                custom_domain__isnull=True,
+            ).first()
+        if not hook:
+            return JsonResponse({"error": "Webhook not found"}, status=404)
+
+        # Reuse existing receiver by dispatching view with kwargs
+        view = WebhookReceiverView.as_view()
+        return view(
+            request,
+            workspace_slug=domain.workspace.slug,
+            hook_slug=slug,
+        )
 
     def _handle_custom_domain_mock(self, request, domain, path):
         from runtime.views import handle_mock_request

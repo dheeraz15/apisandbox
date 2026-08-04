@@ -28,6 +28,8 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://api.dhirajchapagain.com.np}
       SANDBOX_BASE_URL: ${SANDBOX_BASE_URL:-https://api.dhirajchapagain.com.np}
       CUSTOM_DOMAIN_CNAME_TARGET: ${CUSTOM_DOMAIN_CNAME_TARGET:-api.dhirajchapagain.com.np}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-969201656229-h8isqsnu430niikndbbc2ojv5773trle.apps.googleusercontent.com}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     depends_on:
       - db
     restart: unless-stopped

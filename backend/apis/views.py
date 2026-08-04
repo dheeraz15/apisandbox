@@ -82,6 +82,12 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         api.is_deployed = True
         api.deployed_at = timezone.now()
         api.save(update_fields=["is_deployed", "deployed_at"])
+        # Snapshot current definition for this version label
+        APIVersion.objects.create(
+            api=api,
+            version=api.version or "v1",
+            snapshot=MockAPISerializer(api).data,
+        )
         return Response(MockAPISerializer(api).data)
 
     @action(detail=True, methods=["post"])

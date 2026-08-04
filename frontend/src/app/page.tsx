@@ -120,10 +120,33 @@ export default function HomePage() {
               Create a workspace → import or describe an API → bind domains → share
               endpoints with QA, sales, and partner engineers.
             </p>
-            <Link href="/signup" className="mt-8 inline-block">
-              <Button size="lg" className="h-11">
-                Create workspace
-              </Button>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Link href="/signup">
+                <Button size="lg" className="h-11">
+                  Create workspace
+                </Button>
+              </Link>
+              <Link href="/docs">
+                <Button size="lg" variant="outline" className="h-11">
+                  Read docs
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section id="pricing" className="border-b border-border py-16">
+          <div className="mx-auto max-w-3xl px-4 text-center">
+            <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+              Pricing
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight">Coming soon</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+              Simple plans for hobby, team, and enterprise. Start free today while we finalize
+              packaging.
+            </p>
+            <Link href="/pricing" className="mt-6 inline-block text-sm text-foreground underline-offset-4 hover:underline">
+              View pricing page →
             </Link>
           </div>
         </section>
@@ -134,6 +157,13 @@ export default function HomePage() {
             <p className="mt-1 text-xs text-muted-foreground">
               Enterprise API validator & mock infrastructure
             </p>
+            <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <Link href="/docs" className="hover:text-foreground">Docs</Link>
+              <Link href="/pricing" className="hover:text-foreground">Pricing</Link>
+              <Link href="/terms" className="hover:text-foreground">Terms</Link>
+              <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+              <Link href="/llms.txt" className="hover:text-foreground">llms.txt</Link>
+            </div>
           </div>
           <p className="font-mono text-[11px] text-muted-foreground">
             backendruntime.com

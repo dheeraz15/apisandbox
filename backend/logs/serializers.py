@@ -38,6 +38,11 @@ class RequestLogSerializer(serializers.ModelSerializer):
             "rule_matched",
             "finding",
             "user_agent",
+            "api_version",
+            "request_id",
+            "trace_id",
+            "span_id",
+            "domain_host",
             "created_at",
         ]
         read_only_fields = fields
@@ -59,6 +64,7 @@ class IncomingWebhookSerializer(serializers.ModelSerializer):
             "is_active",
             "hit_count",
             "last_hit_at",
+            "custom_domain",
             "receive_url",
             "delivery_count",
             "created_at",

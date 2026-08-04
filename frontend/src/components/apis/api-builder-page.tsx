@@ -65,6 +65,7 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
   const [step, setStep] = useState(0);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [domains, setDomains] = useState<WorkspaceDomain[]>([]);
+  const [datasets, setDatasets] = useState<{ id: string; name: string; data: Record<string, unknown> }[]>([]);
   const [selectedDomain, setSelectedDomain] = useState<string>("platform");
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<MockAPI>>({
@@ -107,6 +108,10 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
           setForm((prev) => ({ ...prev, custom_domain: def.id }));
         }
       })
+      .catch(() => {});
+    api.datasets
+      .list(workspace)
+      .then(setDatasets)
       .catch(() => {});
     api.apis
       .templates()
@@ -421,6 +426,18 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                     />
                   </div>
                   <div>
+                    <Label>API version</Label>
+                    <Input
+                      className="font-mono"
+                      value={form.version || "v1"}
+                      onChange={(e) => update({ version: e.target.value || "v1" })}
+                      placeholder="v1"
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Logged on every hit. Clone or bump when the contract changes.
+                    </p>
+                  </div>
+                  <div>
                     <Label>Serve on domain</Label>
                     <Select
                       value={selectedDomain}
@@ -501,26 +518,79 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                 </div>
               )}
               {step === 4 && (
-                <div>
-                  <Label>200 Response (supports {"{{variables}}"})</Label>
-                  <MonacoEditor
-                    height="260px"
-                    language="json"
-                    theme="vs-dark"
-                    value={prettyJSON(form.responses?.[0]?.body || {})}
-                    onChange={(v) => {
-                      try {
-                        const body = JSON.parse(v || "{}");
-                        const responses = [...(form.responses || [])];
-                        const idx = responses.findIndex((r) => r.status_code === 200);
-                        const resp = { status_code: 200, name: "Success", body };
-                        if (idx >= 0) responses[idx] = resp;
-                        else responses.unshift(resp);
-                        update({ responses });
-                      } catch { /* typing */ }
-                    }}
-                    options={{ minimap: { enabled: false }, fontSize: 13 }}
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <Label>Dataset (optional)</Label>
+                    <Select
+                      value={form.dataset || "none"}
+                      onValueChange={(v) => {
+                        if (!v || v === "none") {
+                          update({ dataset: null });
+                          return;
+                        }
+                        const ds = datasets.find((d) => d.id === v);
+                        update({ dataset: v });
+                        if (ds?.data) {
+                          const body = Array.isArray(ds.data)
+                            ? { items: ds.data }
+                            : ds.data;
+                          const responses = [...(form.responses || [])];
+                          const idx = responses.findIndex((r) => r.status_code === 200);
+                          const resp = {
+                            status_code: 200,
+                            name: "Success",
+                            body,
+                          };
+                          if (idx >= 0) responses[idx] = resp;
+                          else responses.unshift(resp);
+                          update({ responses, dataset: v });
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue>
+                          {(value: string | null) => {
+                            if (!value || value === "none") return "No dataset";
+                            return datasets.find((d) => d.id === value)?.name || "Dataset";
+                          }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" label="No dataset">
+                          No dataset
+                        </SelectItem>
+                        {datasets.map((d) => (
+                          <SelectItem key={d.id} value={d.id} label={d.name}>
+                            {d.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Choosing a dataset seeds the 200 response from its data. Create datasets under Datasets.
+                    </p>
+                  </div>
+                  <div>
+                    <Label>200 Response (supports {"{{variables}}"})</Label>
+                    <MonacoEditor
+                      height="260px"
+                      language="json"
+                      theme="vs-dark"
+                      value={prettyJSON(form.responses?.[0]?.body || {})}
+                      onChange={(v) => {
+                        try {
+                          const body = JSON.parse(v || "{}");
+                          const responses = [...(form.responses || [])];
+                          const idx = responses.findIndex((r) => r.status_code === 200);
+                          const resp = { status_code: 200, name: "Success", body };
+                          if (idx >= 0) responses[idx] = resp;
+                          else responses.unshift(resp);
+                          update({ responses });
+                        } catch { /* typing */ }
+                      }}
+                      options={{ minimap: { enabled: false }, fontSize: 13 }}
+                    />
+                  </div>
                 </div>
               )}
               {step === 5 && (

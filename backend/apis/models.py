@@ -80,6 +80,14 @@ class MockAPI(models.Model):
         related_name="apis",
         help_text="Serve this endpoint on a verified custom domain. Null = platform default.",
     )
+    dataset = models.ForeignKey(
+        Dataset,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="apis",
+        help_text="Optional dataset used as response/data source for this endpoint.",
+    )
 
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)

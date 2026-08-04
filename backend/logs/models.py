@@ -43,6 +43,13 @@ class RequestLog(models.Model):
     user_agent = models.TextField(blank=True)
     query_params = models.JSONField(default=dict, blank=True)
 
+    # Observability / versioning (OpenTelemetry-style)
+    api_version = models.CharField(max_length=20, blank=True, default="")
+    request_id = models.CharField(max_length=64, blank=True, default="")
+    trace_id = models.CharField(max_length=64, blank=True, default="")
+    span_id = models.CharField(max_length=32, blank=True, default="")
+    domain_host = models.CharField(max_length=255, blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -72,6 +79,14 @@ class IncomingWebhook(models.Model):
     is_active = models.BooleanField(default=True)
     hit_count = models.IntegerField(default=0)
     last_hit_at = models.DateTimeField(null=True, blank=True)
+    custom_domain = models.ForeignKey(
+        "workspaces.WorkspaceDomain",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="incoming_webhooks",
+        help_text="Optional verified domain for receive URL.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -85,6 +100,12 @@ class IncomingWebhook(models.Model):
     def receive_url(self):
         from django.conf import settings
 
+        if (
+            self.custom_domain_id
+            and self.custom_domain
+            and self.custom_domain.verified
+        ):
+            return f"https://{self.custom_domain.domain}/hooks/{self.slug}"
         base = settings.SANDBOX_BASE_URL.rstrip("/")
         return f"{base}/api/hooks/{self.workspace.slug}/{self.slug}"
 

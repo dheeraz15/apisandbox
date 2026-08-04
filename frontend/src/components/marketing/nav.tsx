@@ -14,11 +14,14 @@ export function MarketingNav() {
           <span className="text-sm font-medium tracking-tight">backendruntime</span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-          <Link href="#product" className="transition-colors hover:text-foreground">
-            Product
+          <Link href="/docs" className="transition-colors hover:text-foreground">
+            Docs
           </Link>
-          <Link href="#how" className="transition-colors hover:text-foreground">
-            How it works
+          <Link href="/pricing" className="transition-colors hover:text-foreground">
+            Pricing
+          </Link>
+          <Link href="/#product" className="transition-colors hover:text-foreground">
+            Product
           </Link>
         </nav>
         <div className="flex items-center gap-2">
