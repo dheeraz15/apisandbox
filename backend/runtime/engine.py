@@ -199,12 +199,20 @@ class MockAPIEngine:
         return None
 
     def _apply_delay(self):
+        from django.conf import settings
+
+        max_delay = int(getattr(settings, "MAX_MOCK_DELAY_MS", 5000))
         behavior = self.api.behavior or {}
         delay_ms = behavior.get("delay_ms", 0)
         if behavior.get("random_delay"):
             min_d = behavior.get("min_delay_ms", 0)
             max_d = behavior.get("max_delay_ms", 1000)
             delay_ms = random.randint(min_d, max_d)
+        try:
+            delay_ms = int(delay_ms or 0)
+        except (TypeError, ValueError):
+            delay_ms = 0
+        delay_ms = max(0, min(delay_ms, max_delay))
         if delay_ms > 0:
             time.sleep(delay_ms / 1000.0)
 
@@ -406,7 +414,10 @@ class MockAPIEngine:
         )
 
     def _fire_outgoing_webhooks(self, response_body, status_code):
+        import ipaddress
+        import socket
         import threading
+        import urllib.parse
         import urllib.request
 
         from logs.models import OutgoingWebhook
@@ -433,8 +444,33 @@ class MockAPIEngine:
             default=str,
         ).encode()
 
+        def _url_is_safe(url: str) -> bool:
+            try:
+                parsed = urllib.parse.urlparse(url)
+                if parsed.scheme not in ("http", "https"):
+                    return False
+                host = parsed.hostname
+                if not host:
+                    return False
+                infos = socket.getaddrinfo(host, parsed.port or 80, type=socket.SOCK_STREAM)
+                for info in infos:
+                    ip = ipaddress.ip_address(info[4][0])
+                    if (
+                        ip.is_private
+                        or ip.is_loopback
+                        or ip.is_link_local
+                        or ip.is_reserved
+                        or ip.is_multicast
+                    ):
+                        return False
+                return True
+            except Exception:
+                return False
+
         def send(hook):
             try:
+                if not _url_is_safe(hook.url):
+                    return
                 req = urllib.request.Request(
                     hook.url,
                     data=payload,
@@ -448,7 +484,8 @@ class MockAPIEngine:
             except Exception:
                 pass
 
-        for hook in hooks:
+        # Cap concurrent fan-out threads per response
+        for hook in hooks[:10]:
             threading.Thread(target=send, args=(hook,), daemon=True).start()
 
     def _update_stats(self):

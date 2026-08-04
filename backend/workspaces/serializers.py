@@ -17,6 +17,20 @@ class WorkspaceVariableSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Never echo secret values in list/detail JSON; runtime still reads DB directly
+        if instance.is_secret:
+            data["value"] = ""
+            data["has_value"] = bool(instance.value)
+        return data
+
+    def update(self, instance, validated_data):
+        # Masked empty value must not wipe an existing secret
+        if instance.is_secret and validated_data.get("value", None) == "":
+            validated_data.pop("value", None)
+        return super().update(instance, validated_data)
+
 
 class WorkspaceDomainSerializer(serializers.ModelSerializer):
     cname_target = serializers.CharField(read_only=True)

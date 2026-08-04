@@ -43,9 +43,11 @@ class CustomDomainMiddleware(MiddlewareMixin):
         if not domain:
             return None
 
-        # Allow this host for the remainder of the request lifecycle
+        # Allow this verified host for the remainder of the request lifecycle
         if "*" not in settings.ALLOWED_HOSTS and host not in settings.ALLOWED_HOSTS:
-            settings.ALLOWED_HOSTS.append(host)
+            # Cap growth to avoid unbounded memory from many custom domains
+            if len(settings.ALLOWED_HOSTS) < 500:
+                settings.ALLOWED_HOSTS.append(host)
 
         request.custom_domain = domain  # type: ignore[attr-defined]
         request.custom_domain_workspace = domain.workspace  # type: ignore[attr-defined]

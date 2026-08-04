@@ -11,9 +11,8 @@ DEBUG = os.getenv("DEBUG", "True") == "True"
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 if DEBUG and "*" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append("*")
-# Multi-tenant custom domains: allow any Host; CustomDomainMiddleware validates against DB
-if os.getenv("ALLOW_CUSTOM_DOMAINS", "True") == "True" and "*" not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append("*")
+# Custom domains are appended per-request by CustomDomainMiddleware after DB verify.
+# Do not set ALLOWED_HOSTS=* in production.
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -33,8 +32,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
+    # Must run before host validation consumers so verified custom domains can be allowed
     "config.middleware.CustomDomainMiddleware",
+    "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -71,6 +71,7 @@ DATABASES = {
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "sandbox"),
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "CONN_MAX_AGE": int(os.getenv("CONN_MAX_AGE", "60")),
     }
 }
 
@@ -107,19 +108,52 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+        "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": os.getenv("THROTTLE_ANON", "60/min"),
+        "user": os.getenv("THROTTLE_USER", "600/min"),
+        "auth": os.getenv("THROTTLE_AUTH", "20/min"),
+        "import": os.getenv("THROTTLE_IMPORT", "30/min"),
+    },
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
 }
 
-CORS_ALLOWED_ORIGINS = os.getenv(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:3000"
-).split(",")
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if o.strip()
+]
 CORS_ALLOW_CREDENTIALS = True
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+    ).split(",")
+    if o.strip()
+]
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
+    X_FRAME_OPTIONS = "DENY"
+
+# Mock runtime guards
+MAX_MOCK_DELAY_MS = int(os.getenv("MAX_MOCK_DELAY_MS", "5000"))
+MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(1_048_576)))
 
 SANDBOX_BASE_URL = os.getenv("SANDBOX_BASE_URL", "http://localhost:8000")
 CUSTOM_DOMAIN_CNAME_TARGET = os.getenv(
@@ -131,3 +165,15 @@ GOOGLE_CLIENT_ID = os.getenv(
     "969201656229-h8isqsnu430niikndbbc2ojv5773trle.apps.googleusercontent.com",
 )
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.getenv("LOG_LEVEL", "INFO"),
+    },
+}

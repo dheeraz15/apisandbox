@@ -7,12 +7,17 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from rest_framework.authtoken.models import Token
 from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 
 from .models import GoogleAccount
 from .serializers import UserSerializer
+
+
+class AuthRateThrottle(AnonRateThrottle):
+    scope = "auth"
 
 
 def _google_client_id() -> str:
@@ -35,6 +40,7 @@ def verify_google_id_token(id_token: str) -> dict:
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([AuthRateThrottle])
 def google_auth(request):
     id_token = (request.data.get("id_token") or "").strip()
     if not id_token:

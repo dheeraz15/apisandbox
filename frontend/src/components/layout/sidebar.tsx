@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/brand-logo";
+import { api, type AuthUser } from "@/lib/api";
 
 const NAV_ITEMS = [
   { href: "", label: "Dashboard", icon: LayoutDashboard },
@@ -39,6 +41,13 @@ interface SidebarProps {
 export function Sidebar({ workspace }: SidebarProps) {
   const pathname = usePathname();
   const base = `/${workspace}`;
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    api.auth.me().then(setUser).catch(() => setUser(null));
+  }, []);
+
+  const isPlatformAdmin = Boolean(user?.is_staff || user?.is_superuser);
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r border-border bg-sidebar">
@@ -81,12 +90,14 @@ export function Sidebar({ workspace }: SidebarProps) {
       </nav>
 
       <div className="border-t border-border p-3 space-y-2">
-        <Link
-          href="/platform"
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground"
-        >
-          Platform admin
-        </Link>
+        {isPlatformAdmin && (
+          <Link
+            href="/platform"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground"
+          >
+            Platform admin
+          </Link>
+        )}
         <div className="rounded-md bg-muted/50 px-3 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Sandbox URL

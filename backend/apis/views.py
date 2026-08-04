@@ -1,6 +1,8 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import UserRateThrottle
 from django.db.models import Q
 from django.utils import timezone
 import json
@@ -14,13 +16,19 @@ from .serializers import (
 )
 from .ai_generator import generate_api_from_prompt
 from .import_parser import import_from_format, persist_import
+from workspaces.permissions import user_workspace_ids, require_workspace_access, IsWorkspaceMember
+
+
+class ImportRateThrottle(UserRateThrottle):
+    scope = "import"
 
 
 class MockAPIViewSet(viewsets.ModelViewSet):
     serializer_class = MockAPISerializer
+    permission_classes = [IsAuthenticated, IsWorkspaceMember]
 
     def get_queryset(self):
-        qs = MockAPI.objects.all()
+        qs = MockAPI.objects.filter(workspace_id__in=user_workspace_ids(self.request.user))
         workspace_slug = self.request.query_params.get("workspace")
         if workspace_slug:
             qs = qs.filter(workspace__slug=workspace_slug)
@@ -43,6 +51,24 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         if self.action == "list":
             return MockAPIListSerializer
         return MockAPISerializer
+
+    def perform_create(self, serializer):
+        workspace = serializer.validated_data.get("workspace")
+        if workspace:
+            require_workspace_access(self.request.user, workspace_id=workspace.id, edit=True)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_workspace_access(
+            self.request.user, workspace_id=self.get_object().workspace_id, edit=True
+        )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_workspace_access(
+            self.request.user, workspace_id=instance.workspace_id, edit=True
+        )
+        instance.delete()
 
     @action(detail=True, methods=["get"])
     def logs(self, request, pk=None):
@@ -80,10 +106,10 @@ class MockAPIViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def deploy(self, request, pk=None):
         api = self.get_object()
+        require_workspace_access(request.user, workspace_id=api.workspace_id, edit=True)
         api.is_deployed = True
         api.deployed_at = timezone.now()
         api.save(update_fields=["is_deployed", "deployed_at"])
-        # Snapshot current definition for this version label
         APIVersion.objects.create(
             api=api,
             version=api.version_label,
@@ -94,6 +120,7 @@ class MockAPIViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def undeploy(self, request, pk=None):
         api = self.get_object()
+        require_workspace_access(request.user, workspace_id=api.workspace_id, edit=True)
         api.is_deployed = False
         api.save(update_fields=["is_deployed"])
         return Response(MockAPISerializer(api).data)
@@ -116,6 +143,7 @@ class MockAPIViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def clone(self, request, pk=None):
         original = self.get_object()
+        require_workspace_access(request.user, workspace_id=original.workspace_id, edit=True)
         clone = MockAPI.objects.get(pk=original.pk)
         clone.pk = None
         clone.id = None
@@ -157,6 +185,8 @@ class MockAPIViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         workspace_id = request.data.get("workspace")
+        if workspace_id:
+            require_workspace_access(request.user, workspace_id=workspace_id, edit=True)
         generated = generate_api_from_prompt(prompt)
         if workspace_id:
             generated["workspace"] = workspace_id
@@ -172,7 +202,7 @@ class MockAPIViewSet(viewsets.ModelViewSet):
     def from_template(self, request):
         from .ai_generator import get_template
 
-        key = request.data.get("template")
+        key = request.data.get("template") or request.data.get("key")
         if not key:
             return Response({"error": "template key required"}, status=400)
         tpl = get_template(key)
@@ -187,10 +217,11 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         result["behavior"] = result.get("behavior", {"delay_ms": 150})
         result["cors_enabled"] = True
         if workspace_id:
+            require_workspace_access(request.user, workspace_id=workspace_id, edit=True)
             result["workspace"] = workspace_id
         return Response(result)
 
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["post"], throttle_classes=[ImportRateThrottle])
     def import_spec(self, request):
         format_type = request.data.get("format", "").lower()
         content = request.data.get("content")
@@ -214,6 +245,8 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         if not workspace_id:
             return Response({"error": "workspace id is required"}, status=400)
 
+        require_workspace_access(request.user, workspace_id=workspace_id, edit=True)
+
         try:
             result = persist_import(workspace_id, parsed, deploy=bool(deploy))
         except Exception as e:
@@ -227,6 +260,7 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         if request.method == "GET":
             versions = api.versions.all()
             return Response(MockAPIVersionSerializer(versions, many=True).data)
+        require_workspace_access(request.user, workspace_id=api.workspace_id, edit=True)
         snapshot = MockAPISerializer(api).data
         version = APIVersion.objects.create(
             api=api,
@@ -241,13 +275,32 @@ class MockAPIViewSet(viewsets.ModelViewSet):
 
 class CollectionViewSet(viewsets.ModelViewSet):
     serializer_class = CollectionSerializer
+    permission_classes = [IsAuthenticated, IsWorkspaceMember]
 
     def get_queryset(self):
-        qs = Collection.objects.all()
+        qs = Collection.objects.filter(workspace_id__in=user_workspace_ids(self.request.user))
         workspace_slug = self.request.query_params.get("workspace")
         if workspace_slug:
             qs = qs.filter(workspace__slug=workspace_slug)
         return qs
+
+    def perform_create(self, serializer):
+        workspace = serializer.validated_data.get("workspace")
+        if workspace:
+            require_workspace_access(self.request.user, workspace_id=workspace.id, edit=True)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_workspace_access(
+            self.request.user, workspace_id=self.get_object().workspace_id, edit=True
+        )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_workspace_access(
+            self.request.user, workspace_id=instance.workspace_id, edit=True
+        )
+        instance.delete()
 
     @action(detail=True, methods=["get"])
     def apis(self, request, pk=None):
@@ -258,6 +311,7 @@ class CollectionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def assign(self, request, pk=None):
         collection = self.get_object()
+        require_workspace_access(request.user, workspace_id=collection.workspace_id, edit=True)
         api_ids = request.data.get("api_ids", [])
         if not isinstance(api_ids, list):
             return Response({"error": "api_ids must be a list"}, status=400)
@@ -269,6 +323,7 @@ class CollectionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def unassign(self, request, pk=None):
         collection = self.get_object()
+        require_workspace_access(request.user, workspace_id=collection.workspace_id, edit=True)
         api_ids = request.data.get("api_ids", [])
         if not isinstance(api_ids, list):
             return Response({"error": "api_ids must be a list"}, status=400)
@@ -280,8 +335,7 @@ class CollectionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def deploy_all(self, request, pk=None):
         collection = self.get_object()
-        from django.utils import timezone
-
+        require_workspace_access(request.user, workspace_id=collection.workspace_id, edit=True)
         updated = collection.apis.filter(is_deployed=False).update(
             is_deployed=True, deployed_at=timezone.now()
         )
@@ -305,9 +359,10 @@ class CollectionViewSet(viewsets.ModelViewSet):
 
 class DatasetViewSet(viewsets.ModelViewSet):
     serializer_class = DatasetSerializer
+    permission_classes = [IsAuthenticated, IsWorkspaceMember]
 
     def get_queryset(self):
-        qs = Dataset.objects.all()
+        qs = Dataset.objects.filter(workspace_id__in=user_workspace_ids(self.request.user))
         workspace_slug = self.request.query_params.get("workspace")
         if workspace_slug:
             qs = qs.filter(workspace__slug=workspace_slug)
@@ -315,6 +370,24 @@ class DatasetViewSet(viewsets.ModelViewSet):
         if q:
             qs = qs.filter(Q(name__icontains=q) | Q(description__icontains=q))
         return qs
+
+    def perform_create(self, serializer):
+        workspace = serializer.validated_data.get("workspace")
+        if workspace:
+            require_workspace_access(self.request.user, workspace_id=workspace.id, edit=True)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_workspace_access(
+            self.request.user, workspace_id=self.get_object().workspace_id, edit=True
+        )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_workspace_access(
+            self.request.user, workspace_id=instance.workspace_id, edit=True
+        )
+        instance.delete()
 
     @action(detail=False, methods=["get"])
     def catalog(self, request):
@@ -340,6 +413,8 @@ class DatasetViewSet(viewsets.ModelViewSet):
             return Response({"error": "key is required"}, status=400)
         if not workspace_id:
             return Response({"error": "workspace is required"}, status=400)
+
+        require_workspace_access(request.user, workspace_id=workspace_id, edit=True)
 
         catalog = get_catalog_dataset(key)
         if not catalog:

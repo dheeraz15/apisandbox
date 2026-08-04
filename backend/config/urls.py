@@ -1,9 +1,16 @@
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import path, include
 from logs.views import WebhookReceiverView
 
+
+def health(_request):
+    return JsonResponse({"ok": True})
+
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("healthz", health),
     path("api/v1/", include("accounts.urls")),
     path("api/v1/", include("workspaces.urls")),
     path("api/v1/", include("apis.urls")),

@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
 from datetime import timedelta
 from django.utils import timezone
@@ -21,13 +21,13 @@ from .serializers import (
 
 class WorkspaceViewSet(viewsets.ModelViewSet):
     lookup_field = "slug"
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_authenticated:
-            return Workspace.objects.filter(members__user=user).distinct()
-        return Workspace.objects.all()
+        if user.is_staff or user.is_superuser:
+            return Workspace.objects.all()
+        return Workspace.objects.filter(members__user=user).distinct()
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -35,15 +35,12 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         return WorkspaceSerializer
 
     def perform_create(self, serializer):
-        workspace = serializer.save(
-            created_by=self.request.user if self.request.user.is_authenticated else None
+        workspace = serializer.save(created_by=self.request.user)
+        WorkspaceMember.objects.create(
+            workspace=workspace,
+            user=self.request.user,
+            role="owner",
         )
-        if self.request.user.is_authenticated:
-            WorkspaceMember.objects.create(
-                workspace=workspace,
-                user=self.request.user,
-                role="owner",
-            )
 
     def _get_membership(self, workspace):
         if not self.request.user.is_authenticated:

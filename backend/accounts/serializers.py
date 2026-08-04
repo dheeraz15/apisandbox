@@ -6,7 +6,7 @@ from .models import GoogleAccount
 
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(min_length=6, write_only=True)
+    password = serializers.CharField(min_length=8, write_only=True)
     name = serializers.CharField(max_length=150, required=False, allow_blank=True)
 
     def validate_email(self, value):

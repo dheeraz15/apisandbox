@@ -3,7 +3,7 @@ import secrets
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
@@ -16,14 +16,17 @@ from .serializers import (
     WebhookDeliverySerializer,
     OutgoingWebhookSerializer,
 )
+from workspaces.permissions import user_workspace_ids, require_workspace_access, IsWorkspaceMember
 
 
 class RequestLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = RequestLogSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsWorkspaceMember]
 
     def get_queryset(self):
-        qs = RequestLog.objects.select_related("api", "workspace", "collection")
+        qs = RequestLog.objects.select_related("api", "workspace", "collection").filter(
+            workspace_id__in=user_workspace_ids(self.request.user)
+        )
         workspace = self.request.query_params.get("workspace")
         if workspace:
             qs = qs.filter(workspace__slug=workspace)
@@ -126,18 +129,35 @@ class RequestLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 class IncomingWebhookViewSet(viewsets.ModelViewSet):
     serializer_class = IncomingWebhookSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsWorkspaceMember]
 
     def get_queryset(self):
-        qs = IncomingWebhook.objects.all()
+        qs = IncomingWebhook.objects.filter(
+            workspace_id__in=user_workspace_ids(self.request.user)
+        )
         workspace = self.request.query_params.get("workspace")
         if workspace:
             qs = qs.filter(workspace__slug=workspace)
         return qs
 
     def perform_create(self, serializer):
+        workspace = serializer.validated_data.get("workspace")
+        if workspace:
+            require_workspace_access(self.request.user, workspace_id=workspace.id, edit=True)
         secret = serializer.validated_data.get("secret") or secrets.token_hex(16)
         serializer.save(secret=secret)
+
+    def perform_update(self, serializer):
+        require_workspace_access(
+            self.request.user, workspace_id=self.get_object().workspace_id, edit=True
+        )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_workspace_access(
+            self.request.user, workspace_id=instance.workspace_id, edit=True
+        )
+        instance.delete()
 
     @action(detail=True, methods=["get"])
     def deliveries(self, request, pk=None):
@@ -193,19 +213,39 @@ class IncomingWebhookViewSet(viewsets.ModelViewSet):
 
 class OutgoingWebhookViewSet(viewsets.ModelViewSet):
     serializer_class = OutgoingWebhookSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsWorkspaceMember]
 
     def get_queryset(self):
-        qs = OutgoingWebhook.objects.select_related("api")
+        qs = OutgoingWebhook.objects.select_related("api").filter(
+            workspace_id__in=user_workspace_ids(self.request.user)
+        )
         workspace = self.request.query_params.get("workspace")
         if workspace:
             qs = qs.filter(workspace__slug=workspace)
         return qs
 
+    def perform_create(self, serializer):
+        workspace = serializer.validated_data.get("workspace")
+        if workspace:
+            require_workspace_access(self.request.user, workspace_id=workspace.id, edit=True)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        require_workspace_access(
+            self.request.user, workspace_id=self.get_object().workspace_id, edit=True
+        )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_workspace_access(
+            self.request.user, workspace_id=instance.workspace_id, edit=True
+        )
+        instance.delete()
+
 
 @method_decorator(csrf_exempt, name="dispatch")
 class WebhookReceiverView(View):
-    """Accept unlimited webhook payloads on any method."""
+    """Accept webhook payloads on any method (public inbox URL)."""
 
     def dispatch(self, request, workspace_slug, hook_slug):
         try:
@@ -217,7 +257,17 @@ class WebhookReceiverView(View):
         except IncomingWebhook.DoesNotExist:
             return JsonResponse({"error": "Webhook not found"}, status=404)
 
+        from django.conf import settings
+
+        max_bytes = int(getattr(settings, "MAX_REQUEST_BODY_BYTES", 1_048_576))
+        content_length = request.META.get("CONTENT_LENGTH")
+        if content_length and int(content_length) > max_bytes:
+            return JsonResponse({"error": "Payload too large"}, status=413)
+
         raw = request.body.decode("utf-8", errors="replace")
+        if len(raw.encode("utf-8")) > max_bytes:
+            return JsonResponse({"error": "Payload too large"}, status=413)
+
         body = {}
         content_type = request.content_type or ""
         if raw:
@@ -226,10 +276,10 @@ class WebhookReceiverView(View):
             except (json.JSONDecodeError, ValueError):
                 body = {"_raw": raw}
 
-        # Optional secret check via header
+        # When a secret is configured, require a matching header
         if webhook.secret:
             provided = request.headers.get("X-Webhook-Secret", "")
-            if provided and provided != webhook.secret:
+            if not provided or not secrets.compare_digest(provided, webhook.secret):
                 return JsonResponse({"error": "Invalid webhook secret"}, status=401)
 
         delivery = WebhookDelivery.objects.create(

@@ -80,6 +80,19 @@ def handle_mock_request(request, workspace_slug, endpoint_path, custom_domain=No
 
     body = None
     if method in ("POST", "PUT", "PATCH"):
+        from django.conf import settings
+
+        max_bytes = int(getattr(settings, "MAX_REQUEST_BODY_BYTES", 1_048_576))
+        content_length = request.META.get("CONTENT_LENGTH")
+        if content_length:
+            try:
+                if int(content_length) > max_bytes:
+                    return JsonResponse({"error": "Request body too large"}, status=413)
+            except ValueError:
+                pass
+        if len(request.body) > max_bytes:
+            return JsonResponse({"error": "Request body too large"}, status=413)
+
         content_type = request.content_type or ""
         if "json" in content_type:
             try:

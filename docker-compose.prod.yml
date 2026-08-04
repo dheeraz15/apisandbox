@@ -4,12 +4,17 @@ services:
     environment:
       POSTGRES_DB: api_sandbox
       POSTGRES_USER: sandbox
-      POSTGRES_PASSWORD: sandbox
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sandbox}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     ports:
       - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sandbox -d api_sandbox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     image: ghcr.io/dheeraz15/apisandbox-backend:latest
@@ -17,22 +22,38 @@ services:
       - "8100:8000"
     environment:
       DEBUG: "False"
-      SECRET_KEY: ${SECRET_KEY:-change-me}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-api.dhirajchapagain.com.np,localhost,127.0.0.1}
       ALLOW_CUSTOM_DOMAINS: "True"
       POSTGRES_DB: api_sandbox
       POSTGRES_USER: sandbox
-      POSTGRES_PASSWORD: sandbox
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sandbox}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://api.dhirajchapagain.com.np}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://api.dhirajchapagain.com.np}
       SANDBOX_BASE_URL: ${SANDBOX_BASE_URL:-https://api.dhirajchapagain.com.np}
       CUSTOM_DOMAIN_CNAME_TARGET: ${CUSTOM_DOMAIN_CNAME_TARGET:-api.dhirajchapagain.com.np}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-969201656229-h8isqsnu430niikndbbc2ojv5773trle.apps.googleusercontent.com}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      SEED_DEMO: ${SEED_DEMO:-False}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
+      THROTTLE_ANON: ${THROTTLE_ANON:-60/min}
+      THROTTLE_USER: ${THROTTLE_USER:-600/min}
+      THROTTLE_AUTH: ${THROTTLE_AUTH:-20/min}
+      MAX_MOCK_DELAY_MS: ${MAX_MOCK_DELAY_MS:-5000}
+      MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-1048576}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
   frontend:
     image: ghcr.io/dheeraz15/apisandbox-frontend:latest
