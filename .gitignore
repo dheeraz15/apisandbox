@@ -2,3 +2,8 @@ node_modules/
 .next/
 .env*.local
 .DS_Store
+.venv/
+backend/.env
+backend/db.sqlite3
+**/__pycache__/
+*.pyc
