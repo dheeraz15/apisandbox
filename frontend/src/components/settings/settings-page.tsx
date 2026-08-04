@@ -210,7 +210,7 @@ export function SettingsPage({ workspace }: { workspace: string }) {
           </div>
         </section>
 
-        <section className="rounded-lg border border-border p-4 space-y-4">
+        <section id="domains" className="scroll-mt-20 rounded-lg border border-border p-4 space-y-4">
           <div>
             <h2 className="text-sm font-medium">Custom domains</h2>
             <p className="mt-1 text-xs text-muted-foreground">
