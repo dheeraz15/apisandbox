@@ -183,14 +183,22 @@ export function SettingsPage({ workspace }: { workspace: string }) {
               }}
             >
               <SelectTrigger className="h-9">
-                <SelectValue />
+                <SelectValue>
+                  {(value: string | null) => {
+                    if (!value || value === "platform") {
+                      return `Platform · ${platformBase}`;
+                    }
+                    const match = domains.find((d) => d.id === value);
+                    return match?.domain || "Custom domain";
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="platform">
+                <SelectItem value="platform" label={`Platform · ${platformBase}`}>
                   Platform · {platformBase}
                 </SelectItem>
                 {domains.filter((d) => d.verified).map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
+                  <SelectItem key={d.id} value={d.id} label={d.domain}>
                     {d.domain}
                   </SelectItem>
                 ))}

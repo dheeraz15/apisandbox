@@ -160,15 +160,27 @@ export function APIEditorPage({
                 toast.success("Domain updated");
               }}
             >
-              <SelectTrigger className="mt-1 h-8">
-                <SelectValue />
+              <SelectTrigger className="mt-1 h-8 w-full max-w-[220px]">
+                <SelectValue>
+                  {(value: string | null) => {
+                    if (!value || value === "platform") {
+                      return `Platform · ${getPlatformMockBase(workspace)}`;
+                    }
+                    const match = domains.find((d) => d.id === value);
+                    return (
+                      match?.domain ||
+                      apiData.custom_domain_name ||
+                      "Custom domain"
+                    );
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="platform">
+                <SelectItem value="platform" label={`Platform · ${getPlatformMockBase(workspace)}`}>
                   Platform · {getPlatformMockBase(workspace)}
                 </SelectItem>
                 {domains.filter((d) => d.verified).map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
+                  <SelectItem key={d.id} value={d.id} label={d.domain}>
                     {d.domain}
                   </SelectItem>
                 ))}

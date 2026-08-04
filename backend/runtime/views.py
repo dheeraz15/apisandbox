@@ -39,10 +39,40 @@ def handle_mock_request(request, workspace_slug, endpoint_path, custom_domain=No
             break
 
     if not matched_api:
+        # Path may exist under a different method — give a clearer error
+        path_candidates = MockAPI.objects.filter(
+            workspace__slug=workspace_slug,
+            is_deployed=True,
+        ).select_related("custom_domain")
+        if custom_domain is not None:
+            path_candidates = path_candidates.filter(custom_domain=custom_domain)
+        else:
+            path_candidates = path_candidates.filter(custom_domain__isnull=True)
+
+        other_methods = []
+        for api in path_candidates:
+            if _match_path(api.endpoint, full_path) is not None:
+                other_methods.append(api.method)
+
+        if other_methods:
+            return JsonResponse(
+                {
+                    "error": "Method not allowed",
+                    "path": full_path,
+                    "method": method,
+                    "allowed_methods": sorted(set(other_methods)),
+                    "hint": f"This endpoint is deployed as {', '.join(sorted(set(other_methods)))}. Retry with the correct HTTP method.",
+                    "domain": custom_domain.domain if custom_domain else "platform",
+                },
+                status=405,
+                headers={"Allow": ", ".join(sorted(set(other_methods + ["OPTIONS"])))},
+            )
+
         return JsonResponse(
             {
                 "error": "Endpoint not found",
                 "path": full_path,
+                "method": method,
                 "domain": custom_domain.domain if custom_domain else "platform",
             },
             status=404,

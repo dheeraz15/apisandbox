@@ -433,14 +433,25 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue>
+                          {(value: string | null) => {
+                            if (!value || value === "platform") {
+                              return `Platform default · ${getPlatformMockBase(workspace)}`;
+                            }
+                            const match = verifiedDomains.find((d) => d.id === value);
+                            return match?.domain || "Custom domain";
+                          }}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="platform">
+                        <SelectItem
+                          value="platform"
+                          label={`Platform default · ${getPlatformMockBase(workspace)}`}
+                        >
                           Platform default · {getPlatformMockBase(workspace)}
                         </SelectItem>
                         {verifiedDomains.map((d) => (
-                          <SelectItem key={d.id} value={d.id}>
+                          <SelectItem key={d.id} value={d.id} label={d.domain}>
                             {d.domain}
                             {d.is_default ? " (workspace default)" : ""}
                           </SelectItem>
