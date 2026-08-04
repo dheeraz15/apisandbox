@@ -12,6 +12,7 @@ urlpatterns = [
     path("auth/google/link/", google_auth.google_link),
     path("platform/overview/", platform.platform_overview),
     path("platform/users/", platform.platform_users),
+    path("platform/workspaces/", platform.platform_workspaces),
     path("platform/logs/", platform.platform_logs),
     path("platform/analytics/", platform.platform_analytics),
 ]

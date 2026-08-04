@@ -10,8 +10,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
+from apis.models import MockAPI
 from logs.models import RequestLog
-from workspaces.models import Workspace, WorkspaceMember
+from workspaces.models import Workspace, WorkspaceMember, WorkspaceDomain
 from .models import GoogleAccount
 
 
@@ -27,12 +28,69 @@ def _parse_dt(value, default=None):
         return default
 
 
+def _apply_log_filters(qs, request):
+    q = (request.query_params.get("q") or "").strip()
+    if q:
+        qs = qs.filter(
+            Q(path__icontains=q)
+            | Q(api__name__icontains=q)
+            | Q(request_id__icontains=q)
+            | Q(trace_id__icontains=q)
+            | Q(client_ip__icontains=q)
+            | Q(domain_host__icontains=q)
+            | Q(workspace__slug__icontains=q)
+            | Q(workspace__name__icontains=q)
+        )
+    method = request.query_params.get("method")
+    if method:
+        qs = qs.filter(method=method.upper())
+    status = request.query_params.get("status")
+    if status:
+        try:
+            qs = qs.filter(status_code=int(status))
+        except ValueError:
+            pass
+    workspace = request.query_params.get("workspace")
+    if workspace:
+        qs = qs.filter(workspace__slug=workspace)
+    api = request.query_params.get("api")
+    if api:
+        qs = qs.filter(Q(api_id=api) | Q(api__name__icontains=api))
+    user_id = request.query_params.get("user")
+    if user_id:
+        try:
+            uid = int(user_id)
+            ws_ids = WorkspaceMember.objects.filter(user_id=uid).values_list(
+                "workspace_id", flat=True
+            )
+            qs = qs.filter(workspace_id__in=ws_ids)
+        except ValueError:
+            # email/name search
+            user_ids = User.objects.filter(
+                Q(email__icontains=user_id)
+                | Q(first_name__icontains=user_id)
+                | Q(username__icontains=user_id)
+            ).values_list("id", flat=True)
+            ws_ids = WorkspaceMember.objects.filter(user_id__in=user_ids).values_list(
+                "workspace_id", flat=True
+            )
+            qs = qs.filter(workspace_id__in=ws_ids)
+    from_dt = _parse_dt(request.query_params.get("from"))
+    to_dt = _parse_dt(request.query_params.get("to"))
+    if from_dt:
+        qs = qs.filter(created_at__gte=from_dt)
+    if to_dt:
+        qs = qs.filter(created_at__lte=to_dt)
+    return qs
+
+
 @api_view(["GET"])
 @permission_classes([IsAdminUser])
 def platform_overview(request):
     now = timezone.now()
     users = User.objects.all()
     logs = RequestLog.objects.all()
+    apis = MockAPI.objects.all()
     return Response(
         {
             "users_total": users.count(),
@@ -40,9 +98,15 @@ def platform_overview(request):
             "users_active_7d": users.filter(last_login__gte=now - timedelta(days=7)).count(),
             "workspaces_total": Workspace.objects.count(),
             "members_total": WorkspaceMember.objects.count(),
+            "apis_total": apis.count(),
+            "apis_deployed": apis.filter(is_deployed=True).count(),
+            "domains_verified": WorkspaceDomain.objects.filter(verified=True).count(),
             "requests_total": logs.count(),
             "requests_24h": logs.filter(created_at__gte=now - timedelta(hours=24)).count(),
             "requests_7d": logs.filter(created_at__gte=now - timedelta(days=7)).count(),
+            "errors_24h": logs.filter(
+                created_at__gte=now - timedelta(hours=24), status_code__gte=400
+            ).count(),
             "avg_latency_24h": round(
                 logs.filter(created_at__gte=now - timedelta(hours=24)).aggregate(
                     avg=Avg("latency_ms")
@@ -110,41 +174,62 @@ def platform_users(request):
 
 @api_view(["GET"])
 @permission_classes([IsAdminUser])
-def platform_logs(request):
-    qs = RequestLog.objects.select_related(
-        "workspace", "api", "collection"
-    ).order_by("-created_at")
-
+def platform_workspaces(request):
     q = (request.query_params.get("q") or "").strip()
+    qs = Workspace.objects.all().order_by("-created_at")
     if q:
-        qs = qs.filter(
-            Q(path__icontains=q)
-            | Q(api__name__icontains=q)
-            | Q(request_id__icontains=q)
-            | Q(trace_id__icontains=q)
-            | Q(client_ip__icontains=q)
-            | Q(domain_host__icontains=q)
-            | Q(workspace__slug__icontains=q)
-            | Q(workspace__name__icontains=q)
-        )
-    method = request.query_params.get("method")
-    if method:
-        qs = qs.filter(method=method.upper())
-    status = request.query_params.get("status")
-    if status:
+        qs = qs.filter(Q(name__icontains=q) | Q(slug__icontains=q))
+    owner = request.query_params.get("user")
+    if owner:
         try:
-            qs = qs.filter(status_code=int(status))
+            uid = int(owner)
+            qs = qs.filter(members__user_id=uid).distinct()
         except ValueError:
-            pass
-    workspace = request.query_params.get("workspace")
-    if workspace:
-        qs = qs.filter(workspace__slug=workspace)
+            qs = qs.filter(
+                members__user__email__icontains=owner
+            ).distinct()
+
     from_dt = _parse_dt(request.query_params.get("from"))
     to_dt = _parse_dt(request.query_params.get("to"))
     if from_dt:
         qs = qs.filter(created_at__gte=from_dt)
     if to_dt:
         qs = qs.filter(created_at__lte=to_dt)
+
+    limit = min(int(request.query_params.get("limit", 100)), 500)
+    offset = max(int(request.query_params.get("offset", 0)), 0)
+    total = qs.count()
+    rows = []
+    for ws in qs[offset : offset + limit]:
+        owner_m = ws.members.filter(role="owner").select_related("user").first()
+        rows.append(
+            {
+                "id": str(ws.id),
+                "name": ws.name,
+                "slug": ws.slug,
+                "created_at": ws.created_at,
+                "member_count": ws.members.count(),
+                "api_count": ws.apis.count(),
+                "deployed_count": ws.apis.filter(is_deployed=True).count(),
+                "request_count": RequestLog.objects.filter(workspace=ws).count(),
+                "owner_email": owner_m.user.email if owner_m else None,
+                "owner_name": (
+                    (owner_m.user.first_name or owner_m.user.username) if owner_m else None
+                ),
+            }
+        )
+    return Response({"total": total, "offset": offset, "limit": limit, "results": rows})
+
+
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def platform_logs(request):
+    qs = _apply_log_filters(
+        RequestLog.objects.select_related("workspace", "api", "collection").order_by(
+            "-created_at"
+        ),
+        request,
+    )
 
     limit = min(int(request.query_params.get("limit", 100)), 500)
     offset = max(int(request.query_params.get("offset", 0)), 0)
@@ -166,6 +251,7 @@ def platform_logs(request):
                 "domain_host": getattr(log, "domain_host", "") or "",
                 "workspace": log.workspace.slug if log.workspace_id else None,
                 "workspace_name": log.workspace.name if log.workspace_id else None,
+                "api_id": str(log.api_id) if log.api_id else None,
                 "api_name": log.api.name if log.api_id else None,
                 "finding": log.finding or "",
             }
@@ -185,6 +271,15 @@ def platform_analytics(request):
     logs = RequestLog.objects.filter(created_at__gte=since)
     if until:
         logs = logs.filter(created_at__lte=until)
+    # Reuse filters except from/to already applied
+    class _Req:
+        query_params = {
+            k: v
+            for k, v in request.query_params.items()
+            if k not in ("from", "to", "days")
+        }
+
+    logs = _apply_log_filters(logs, _Req())
 
     total = logs.count()
     errors = logs.filter(status_code__gte=400).count() if total else 0
@@ -205,6 +300,12 @@ def platform_analytics(request):
                 logs.filter(workspace__isnull=False)
                 .values("workspace_id", "workspace__slug", "workspace__name")
                 .annotate(count=Count("id"), avg_latency=Avg("latency_ms"))
+                .order_by("-count")[:25]
+            ),
+            "by_api": list(
+                logs.filter(api__isnull=False)
+                .values("api_id", "api__name", "api__method", "api__endpoint")
+                .annotate(count=Count("id"))
                 .order_by("-count")[:25]
             ),
             "by_day": list(

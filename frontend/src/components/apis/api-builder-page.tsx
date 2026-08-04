@@ -69,6 +69,7 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const collectionId = searchParams.get("collection");
+  const openImport = searchParams.get("import") === "1";
   const [mode, setMode] = useState<"templates" | "ai" | "manual" | "import">("templates");
   const [templates, setTemplates] = useState<ApiTemplate[]>([]);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
@@ -85,7 +86,7 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
   const [templateQuery, setTemplateQuery] = useState("");
   const [templateCategory, setTemplateCategory] = useState("all");
   const [templateType, setTemplateType] = useState("all");
-  const [importOpen, setImportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(openImport);
   const [form, setForm] = useState<Partial<MockAPI>>({
     name: "",
     description: "",

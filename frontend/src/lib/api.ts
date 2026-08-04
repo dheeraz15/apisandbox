@@ -143,6 +143,16 @@ export const api = {
         `/platform/users/${qs ? `?${qs}` : ""}`
       );
     },
+    workspaces: (params?: Record<string, string | number | undefined>) => {
+      const q = new URLSearchParams();
+      Object.entries(params || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== "") q.set(k, String(v));
+      });
+      const qs = q.toString();
+      return fetchAPI<PlatformWorkspacesResponse>(
+        `/platform/workspaces/${qs ? `?${qs}` : ""}`
+      );
+    },
     logs: (params?: Record<string, string | number | undefined>) => {
       const q = new URLSearchParams();
       Object.entries(params || {}).forEach(([k, v]) => {
@@ -483,9 +493,13 @@ export interface PlatformOverview {
   users_active_7d: number;
   workspaces_total: number;
   members_total: number;
+  apis_total: number;
+  apis_deployed: number;
+  domains_verified: number;
   requests_total: number;
   requests_24h: number;
   requests_7d: number;
+  errors_24h: number;
   avg_latency_24h: number;
 }
 
@@ -511,6 +525,26 @@ export interface PlatformUsersResponse {
   results: PlatformUserRow[];
 }
 
+export interface PlatformWorkspaceRow {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+  member_count: number;
+  api_count: number;
+  deployed_count: number;
+  request_count: number;
+  owner_email: string | null;
+  owner_name: string | null;
+}
+
+export interface PlatformWorkspacesResponse {
+  total: number;
+  offset: number;
+  limit: number;
+  results: PlatformWorkspaceRow[];
+}
+
 export interface PlatformLogRow {
   id: string;
   created_at: string;
@@ -525,6 +559,7 @@ export interface PlatformLogRow {
   domain_host: string;
   workspace: string | null;
   workspace_name: string | null;
+  api_id: string | null;
   api_name: string | null;
   finding: string;
 }
@@ -550,6 +585,13 @@ export interface PlatformAnalytics {
     workspace__name: string;
     count: number;
     avg_latency: number;
+  }[];
+  by_api: {
+    api_id: string;
+    api__name: string;
+    api__method: string;
+    api__endpoint: string;
+    count: number;
   }[];
   by_day: { day: string; count: number }[];
   by_hour: { hour: string; count: number }[];

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Search, Shield } from "lucide-react";
+import { ChevronDown, Loader2, Search, Shield } from "lucide-react";
 import {
   api,
   AuthUser,
@@ -11,6 +11,7 @@ import {
   PlatformLogRow,
   PlatformOverview,
   PlatformUserRow,
+  PlatformWorkspaceRow,
   getAuthToken,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MethodBadge } from "@/components/apis/method-badge";
+import { BrandLogo } from "@/components/brand-logo";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  lastWorkspace,
+  setViewMode,
+} from "@/lib/view-mode";
 
-type Tab = "overview" | "users" | "logs" | "analytics";
+type Tab = "overview" | "users" | "workspaces" | "logs" | "analytics";
 
 export function PlatformAdminPage() {
   const router = useRouter();
@@ -28,10 +40,15 @@ export function PlatformAdminPage() {
   const [overview, setOverview] = useState<PlatformOverview | null>(null);
   const [users, setUsers] = useState<PlatformUserRow[]>([]);
   const [usersTotal, setUsersTotal] = useState(0);
+  const [workspaces, setWorkspaces] = useState<PlatformWorkspaceRow[]>([]);
+  const [workspacesTotal, setWorkspacesTotal] = useState(0);
   const [logs, setLogs] = useState<PlatformLogRow[]>([]);
   const [logsTotal, setLogsTotal] = useState(0);
   const [analytics, setAnalytics] = useState<PlatformAnalytics | null>(null);
   const [q, setQ] = useState("");
+  const [userFilter, setUserFilter] = useState("");
+  const [apiFilter, setApiFilter] = useState("");
+  const [workspaceFilter, setWorkspaceFilter] = useState("");
   const [method, setMethod] = useState("");
   const [status, setStatus] = useState("");
   const [fromLocal, setFromLocal] = useState("");
@@ -44,6 +61,7 @@ export function PlatformAdminPage() {
       router.replace("/login");
       return;
     }
+    setViewMode("platform");
     api.auth
       .me()
       .then((me) => {
@@ -58,6 +76,22 @@ export function PlatformAdminPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
+  const goUserView = async () => {
+    setViewMode("user");
+    const remembered = lastWorkspace();
+    if (remembered) {
+      router.push(`/${remembered}`);
+      return;
+    }
+    try {
+      const list = await api.workspaces.list();
+      if (list[0]?.slug) router.push(`/${list[0].slug}`);
+      else router.push("/onboarding");
+    } catch {
+      router.push("/onboarding");
+    }
+  };
+
   const load = useCallback(async () => {
     if (!user?.is_staff && !user?.is_superuser) return;
     const from = fromLocal ? new Date(fromLocal).toISOString() : undefined;
@@ -70,11 +104,24 @@ export function PlatformAdminPage() {
         const res = await api.platform.users({ q, from, to, limit: 100 });
         setUsers(res.results);
         setUsersTotal(res.total);
+      } else if (tab === "workspaces") {
+        const res = await api.platform.workspaces({
+          q,
+          user: userFilter || undefined,
+          from,
+          to,
+          limit: 100,
+        });
+        setWorkspaces(res.results);
+        setWorkspacesTotal(res.total);
       } else if (tab === "logs") {
         const res = await api.platform.logs({
           q,
           method: method || undefined,
           status: status || undefined,
+          user: userFilter || undefined,
+          api: apiFilter || undefined,
+          workspace: workspaceFilter || undefined,
           from,
           to,
           limit: 100,
@@ -87,13 +134,28 @@ export function PlatformAdminPage() {
             from,
             to,
             days: from ? undefined : 7,
+            user: userFilter || undefined,
+            api: apiFilter || undefined,
+            workspace: workspaceFilter || undefined,
+            q: q || undefined,
           })
         );
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     }
-  }, [user, tab, q, method, status, fromLocal, toLocal]);
+  }, [
+    user,
+    tab,
+    q,
+    method,
+    status,
+    fromLocal,
+    toLocal,
+    userFilter,
+    apiFilter,
+    workspaceFilter,
+  ]);
 
   useEffect(() => {
     load();
@@ -126,20 +188,31 @@ export function PlatformAdminPage() {
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <Shield className="h-4 w-4" />
-            <span className="text-sm font-medium tracking-tight">Platform admin</span>
-            <Badge variant="secondary" className="font-mono text-[10px]">
+            <Link href="/">
+              <BrandLogo size={28} showWordmark />
+            </Link>
+            <span className="text-muted-foreground/40">/</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-accent">
+                <Shield className="h-3 w-3" />
+                Platform view
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={goUserView}>User view</DropdownMenuItem>
+                <DropdownMenuItem disabled>Platform view</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Badge variant="secondary" className="hidden font-mono text-[10px] sm:inline-flex">
               {user?.email}
             </Badge>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/">
-              <Button variant="ghost" size="sm">
-                Marketing
-              </Button>
-            </Link>
+            <Button variant="outline" size="sm" onClick={goUserView}>
+              Open workspace
+            </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={async () => {
                 await api.auth.logout().catch(() => null);
@@ -155,6 +228,7 @@ export function PlatformAdminPage() {
             [
               ["overview", "Overview"],
               ["users", "Users"],
+              ["workspaces", "Workspaces"],
               ["logs", "API requests"],
               ["analytics", "Analytics"],
             ] as const
@@ -177,7 +251,7 @@ export function PlatformAdminPage() {
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         {tab !== "overview" && (
           <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border p-4">
-            <div className="min-w-[200px] flex-1">
+            <div className="min-w-[160px] flex-1">
               <Label className="text-xs text-muted-foreground">Search</Label>
               <div className="relative mt-1">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -186,19 +260,54 @@ export function PlatformAdminPage() {
                   placeholder={
                     tab === "users"
                       ? "Email, name…"
-                      : "Path, workspace, request id…"
+                      : tab === "workspaces"
+                        ? "Workspace name or slug…"
+                        : "Path, request id…"
                   }
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                 />
               </div>
             </div>
+            {(tab === "logs" || tab === "analytics" || tab === "workspaces") && (
+              <div>
+                <Label className="text-xs text-muted-foreground">User</Label>
+                <Input
+                  className="mt-1 h-9 w-40"
+                  placeholder="email or id"
+                  value={userFilter}
+                  onChange={(e) => setUserFilter(e.target.value)}
+                />
+              </div>
+            )}
+            {(tab === "logs" || tab === "analytics") && (
+              <>
+                <div>
+                  <Label className="text-xs text-muted-foreground">API</Label>
+                  <Input
+                    className="mt-1 h-9 w-36"
+                    placeholder="name or id"
+                    value={apiFilter}
+                    onChange={(e) => setApiFilter(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Workspace</Label>
+                  <Input
+                    className="mt-1 h-9 w-32"
+                    placeholder="slug"
+                    value={workspaceFilter}
+                    onChange={(e) => setWorkspaceFilter(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
             {tab === "logs" && (
               <>
                 <div>
                   <Label className="text-xs text-muted-foreground">Method</Label>
                   <Input
-                    className="mt-1 h-9 w-28"
+                    className="mt-1 h-9 w-24"
                     placeholder="GET"
                     value={method}
                     onChange={(e) => setMethod(e.target.value)}
@@ -207,7 +316,7 @@ export function PlatformAdminPage() {
                 <div>
                   <Label className="text-xs text-muted-foreground">Status</Label>
                   <Input
-                    className="mt-1 h-9 w-24"
+                    className="mt-1 h-9 w-20"
                     placeholder="200"
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
@@ -249,7 +358,11 @@ export function PlatformAdminPage() {
               ["Users", overview.users_total],
               ["Active 7d", overview.users_active_7d],
               ["Workspaces", overview.workspaces_total],
+              ["APIs", overview.apis_total],
+              ["Deployed APIs", overview.apis_deployed],
+              ["Verified domains", overview.domains_verified],
               ["Requests 24h", overview.requests_24h],
+              ["Errors 24h", overview.errors_24h],
               ["Requests 7d", overview.requests_7d],
               ["Requests total", overview.requests_total],
               ["Avg latency 24h", `${overview.avg_latency_24h}ms`],
@@ -275,7 +388,7 @@ export function PlatformAdminPage() {
                 <thead className="border-b border-border text-xs text-muted-foreground">
                   <tr>
                     <th className="px-4 py-2 font-medium">User</th>
-                    <th className="px-4 py-2 font-medium">First login</th>
+                    <th className="px-4 py-2 font-medium">Joined</th>
                     <th className="px-4 py-2 font-medium">Last login</th>
                     <th className="px-4 py-2 font-medium">Workspaces</th>
                     <th className="px-4 py-2 font-medium">Requests</th>
@@ -314,6 +427,49 @@ export function PlatformAdminPage() {
                           {u.is_staff && <Badge>Staff</Badge>}
                           {!u.is_active && <Badge variant="outline">Inactive</Badge>}
                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "workspaces" && (
+          <div className="overflow-hidden rounded-lg border border-border">
+            <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+              {workspacesTotal.toLocaleString()} workspaces
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-border text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Workspace</th>
+                    <th className="px-4 py-2 font-medium">Owner</th>
+                    <th className="px-4 py-2 font-medium">Members</th>
+                    <th className="px-4 py-2 font-medium">APIs</th>
+                    <th className="px-4 py-2 font-medium">Deployed</th>
+                    <th className="px-4 py-2 font-medium">Requests</th>
+                    <th className="px-4 py-2 font-medium">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workspaces.map((w) => (
+                    <tr key={w.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{w.name}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{w.slug}</p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {w.owner_email || "—"}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-xs">{w.member_count}</td>
+                      <td className="px-4 py-3 tabular-nums text-xs">{w.api_count}</td>
+                      <td className="px-4 py-3 tabular-nums text-xs">{w.deployed_count}</td>
+                      <td className="px-4 py-3 tabular-nums text-xs">{w.request_count}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {new Date(w.created_at).toLocaleString()}
                       </td>
                     </tr>
                   ))}
@@ -393,6 +549,21 @@ export function PlatformAdminPage() {
                   >
                     <span className="font-mono text-xs">{row.workspace__slug}</span>
                     <span className="tabular-nums text-muted-foreground">{row.count}</span>
+                  </div>
+                ))}
+              </Panel>
+              <Panel title="By API">
+                {(analytics.by_api || []).map((row) => (
+                  <div
+                    key={row.api_id}
+                    className="flex justify-between gap-3 border-b border-border px-4 py-2 text-sm last:border-0"
+                  >
+                    <span className="truncate font-mono text-xs">
+                      {row.api__method} {row.api__name}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                      {row.count}
+                    </span>
                   </div>
                 ))}
               </Panel>
