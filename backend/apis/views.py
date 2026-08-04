@@ -98,6 +98,21 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         api.save(update_fields=["is_deployed"])
         return Response(MockAPISerializer(api).data)
 
+    @action(detail=True, methods=["get"])
+    def export(self, request, pk=None):
+        from .export_spec import export_apis_openapi, export_apis_postman
+
+        api = self.get_object()
+        fmt = (request.query_params.get("format") or "openapi").lower()
+        if fmt in ("postman", "postman_collection"):
+            return Response(export_apis_postman([api], name=api.name))
+        if fmt in ("openapi", "swagger", "oas"):
+            return Response(export_apis_openapi([api], title=api.name))
+        return Response(
+            {"error": "format must be openapi or postman"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     @action(detail=True, methods=["post"])
     def clone(self, request, pk=None):
         original = self.get_object()
@@ -271,6 +286,21 @@ class CollectionViewSet(viewsets.ModelViewSet):
             is_deployed=True, deployed_at=timezone.now()
         )
         return Response({"deployed": updated})
+
+    @action(detail=True, methods=["get"])
+    def export(self, request, pk=None):
+        from .export_spec import export_collection_openapi, export_collection_postman
+
+        collection = self.get_object()
+        fmt = (request.query_params.get("format") or "openapi").lower()
+        if fmt in ("postman", "postman_collection"):
+            return Response(export_collection_postman(collection))
+        if fmt in ("openapi", "swagger", "oas"):
+            return Response(export_collection_openapi(collection))
+        return Response(
+            {"error": "format must be openapi or postman"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 class DatasetViewSet(viewsets.ModelViewSet):

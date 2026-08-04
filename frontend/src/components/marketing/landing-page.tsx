@@ -73,7 +73,7 @@ export function LandingPage() {
             variants={stagger}
           >
             <motion.div variants={anim} className="flex items-center gap-3">
-              <BrandLogo size={36} />
+              <BrandLogo size={40} />
               <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
                 backendruntime
               </p>

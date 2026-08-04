@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Rocket, Play, Copy, Loader2 } from "lucide-react";
+import { Rocket, Play, Copy, Loader2, Download } from "lucide-react";
 import { MethodBadge } from "@/components/apis/method-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   api,
   MockAPI,
   TestResponse,
@@ -28,6 +34,7 @@ import {
   getPlatformMockBase,
   prettyJSON,
 } from "@/lib/api";
+import { downloadJson } from "@/lib/download";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -123,6 +130,49 @@ export function APIEditorPage({
               <Rocket className="mr-1.5 h-3.5 w-3.5" /> Deploy
             </Button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button size="sm" variant="outline">
+                  <Download className="mr-1.5 h-3.5 w-3.5" /> Export
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={async () => {
+                  try {
+                    const data = await api.apis.export(apiId, "openapi");
+                    downloadJson(
+                      `${apiData.name.replace(/\s+/g, "-").toLowerCase()}.openapi.json`,
+                      data
+                    );
+                    toast.success("Exported OpenAPI");
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Export failed");
+                  }
+                }}
+              >
+                OpenAPI / Swagger
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={async () => {
+                  try {
+                    const data = await api.apis.export(apiId, "postman");
+                    downloadJson(
+                      `${apiData.name.replace(/\s+/g, "-").toLowerCase()}.postman.json`,
+                      data
+                    );
+                    toast.success("Exported Postman");
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Export failed");
+                  }
+                }}
+              >
+                Postman collection
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

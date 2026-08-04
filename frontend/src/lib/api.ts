@@ -299,6 +299,8 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    export: (id: string, format: "openapi" | "postman" = "openapi") =>
+      fetchAPI<Record<string, unknown>>(`/apis/${id}/export/?format=${format}`),
     logs: (id: string) => fetchAPI<RequestLog[]>(`/apis/${id}/logs/`),
     stats: (id: string) => fetchAPI<ApiStats>(`/apis/${id}/stats/`),
   },
@@ -337,6 +339,10 @@ export const api = {
       fetchAPI<{ deployed: number }>(`/collections/${id}/deploy_all/`, {
         method: "POST",
       }),
+    export: (id: string, format: "openapi" | "postman" = "openapi") =>
+      fetchAPI<Record<string, unknown>>(
+        `/collections/${id}/export/?format=${format}`
+      ),
   },
   datasets: {
     list: async (workspace: string, q?: string) => {

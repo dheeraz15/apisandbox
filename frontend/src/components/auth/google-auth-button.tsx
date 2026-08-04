@@ -32,6 +32,7 @@ export function GoogleAuthButton({
   const btnRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const existing = document.getElementById("google-gsi");
@@ -63,6 +64,7 @@ export function GoogleAuthButton({
         text: "continue_with",
         width: 320,
       });
+      setReady(true);
     };
 
     if (existing) {
@@ -79,15 +81,20 @@ export function GoogleAuthButton({
 
   return (
     <div className="space-y-2">
-      <div className="relative flex items-center justify-center">
-        <div ref={btnRef} className="flex min-h-10 w-full justify-center" />
+      {/* Fixed height reservation prevents layout jump while GSI loads */}
+      <div className="relative flex min-h-[44px] w-full items-center justify-center">
+        {!ready && !loading && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-muted/30 text-xs text-muted-foreground">
+            Loading Google…
+          </div>
+        )}
+        <div ref={btnRef} className="flex w-full justify-center" />
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/60 text-xs text-muted-foreground">
             Signing in…
           </div>
         )}
       </div>
-      {/* Fallback label for a11y / layout */}
       <p className="sr-only">{label}</p>
       {error && <p className="text-sm text-red-400">{error}</p>}
       {!GOOGLE_CLIENT_ID && (

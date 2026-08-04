@@ -76,7 +76,7 @@ export function AppShell({
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center">
-            <BrandLogo size={20} showWordmark />
+            <BrandLogo size={28} showWordmark />
           </Link>
           <span className="text-muted-foreground/40">/</span>
           <DropdownMenu>

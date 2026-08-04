@@ -12,9 +12,11 @@ import {
   Settings2,
   Rocket,
   Search,
+  Upload,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { MethodBadge } from "@/components/apis/method-badge";
+import { ImportDialog } from "@/components/apis/import-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   api,
   MockAPI,
@@ -67,8 +69,9 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const collectionId = searchParams.get("collection");
-  const [mode, setMode] = useState<"templates" | "ai" | "manual">("templates");
+  const [mode, setMode] = useState<"templates" | "ai" | "manual" | "import">("templates");
   const [templates, setTemplates] = useState<ApiTemplate[]>([]);
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [aiPrompt, setAiPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -82,10 +85,12 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
   const [templateQuery, setTemplateQuery] = useState("");
   const [templateCategory, setTemplateCategory] = useState("all");
   const [templateType, setTemplateType] = useState("all");
+  const [importOpen, setImportOpen] = useState(false);
   const [form, setForm] = useState<Partial<MockAPI>>({
     name: "",
     description: "",
     category: "",
+    collection: collectionId || null,
     tags: [],
     method: "POST",
     endpoint: "/",
@@ -126,6 +131,10 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
     api.datasets
       .list(workspace)
       .then(setDatasets)
+      .catch(() => {});
+    api.collections
+      .list(workspace)
+      .then((list) => setCollections(list.map((c) => ({ id: c.id, name: c.name }))))
       .catch(() => {});
     api.apis
       .templates()
@@ -199,7 +208,10 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
       const created = await api.apis.create({
         ...form,
         workspace: wsId,
-        collection: collectionId || form.collection,
+        collection:
+          form.collection && form.collection !== "none"
+            ? form.collection
+            : collectionId || null,
         custom_domain: selectedDomain === "platform" ? null : selectedDomain,
       });
       if (andDeploy) {
@@ -262,34 +274,54 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
         }
       />
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-52 shrink-0 border-r border-border p-3">
-          <Tabs
-            value={mode}
-            onValueChange={(v) => setMode(v as typeof mode)}
-          >
-            <TabsList className="grid w-full grid-cols-1 h-auto gap-1 bg-transparent p-0">
-              <TabsTrigger value="templates" className="justify-start gap-2 data-[state=active]:bg-accent">
-                <LayoutTemplate className="h-3.5 w-3.5" /> Templates
-              </TabsTrigger>
-              <TabsTrigger value="ai" className="justify-start gap-2 data-[state=active]:bg-accent">
-                <Sparkles className="h-3.5 w-3.5" /> AI
-              </TabsTrigger>
-              <TabsTrigger value="manual" className="justify-start gap-2 data-[state=active]:bg-accent">
-                <Settings2 className="h-3.5 w-3.5" /> Configure
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <div className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-border p-3">
+          <div className="space-y-1">
+            {(
+              [
+                { id: "templates", label: "Templates", icon: LayoutTemplate },
+                { id: "ai", label: "AI", icon: Sparkles },
+                { id: "import", label: "Import", icon: Upload },
+                { id: "manual", label: "Configure", icon: Settings2 },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  if (id === "import") {
+                    setImportOpen(true);
+                    return;
+                  }
+                  setMode(id);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                  mode === id
+                    ? "bg-accent font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {label}
+              </button>
+            ))}
+          </div>
           {mode === "manual" && (
-            <nav className="mt-4 space-y-0.5">
+            <nav className="mt-5 space-y-0.5 border-t border-border pt-4">
+              <p className="mb-2 px-3 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Steps
+              </p>
               {STEPS.map((label, i) => (
                 <button
                   key={label}
+                  type="button"
                   onClick={() => setStep(i)}
-                  className={`w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
+                  className={cn(
+                    "w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors",
                     step === i
-                      ? "bg-accent font-medium"
+                      ? "bg-accent font-medium text-foreground"
                       : "text-muted-foreground hover:bg-accent/50"
-                  }`}
+                  )}
                 >
                   {i + 1}. {label}
                 </button>
@@ -480,12 +512,29 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                     />
                   </div>
                   <div>
-                    <Label>Category</Label>
-                    <Input
-                      value={form.category || ""}
-                      onChange={(e) => update({ category: e.target.value })}
-                      placeholder="Core Banking"
-                    />
+                    <Label>Collection</Label>
+                    <Select
+                      value={(form.collection as string) || "none"}
+                      onValueChange={(v) => {
+                        if (!v) return;
+                        update({ collection: v === "none" ? null : v });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Optional collection" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No collection</SelectItem>
+                        {collections.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Group this endpoint in a collection for export and deploy-all.
+                    </p>
                   </div>
                 </>
               )}
@@ -761,6 +810,15 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
           </div>
         </div>
       </div>
+      {workspaceId && (
+        <ImportDialog
+          workspace={workspace}
+          workspaceId={workspaceId}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImported={() => router.push(`/${workspace}/apis`)}
+        />
+      )}
     </>
   );
 }

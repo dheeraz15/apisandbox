@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Copy, Trash2, Rocket, MoreHorizontal, Search, Plus, Upload } from "lucide-react";
+import { Copy, Trash2, Rocket, MoreHorizontal, Search, Plus, Upload, Download } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { MethodBadge } from "@/components/apis/method-badge";
 import { ImportDialog } from "@/components/apis/import-dialog";
@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, MockAPIListItem } from "@/lib/api";
+import { downloadJson } from "@/lib/download";
 
 interface APIsPageProps {
   workspace: string;
@@ -72,6 +73,20 @@ export function APIsPage({ workspace }: APIsPageProps) {
       load();
     } catch {
       toast.error("Delete failed");
+    }
+  };
+
+  const handleExport = async (id: string, name: string, format: "openapi" | "postman") => {
+    try {
+      const data = await api.apis.export(id, format);
+      const safe = name.replace(/[^a-z0-9-_]+/gi, "-").toLowerCase() || "endpoint";
+      downloadJson(
+        `${safe}.${format === "postman" ? "postman.json" : "openapi.json"}`,
+        data
+      );
+      toast.success(`Exported ${format}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed");
     }
   };
 
@@ -198,6 +213,16 @@ export function APIsPage({ workspace }: APIsPageProps) {
                   )}
                   <DropdownMenuItem onClick={() => handleClone(apiItem.id)}>
                     <Copy className="mr-2 h-4 w-4" /> Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExport(apiItem.id, apiItem.name, "openapi")}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Export OpenAPI
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleExport(apiItem.id, apiItem.name, "postman")}
+                  >
+                    <Download className="mr-2 h-4 w-4" /> Export Postman
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

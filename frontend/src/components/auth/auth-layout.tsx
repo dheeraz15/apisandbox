@@ -14,7 +14,7 @@ export function AuthLayout({
     <div className="grid-bg flex min-h-screen flex-col">
       <header className="flex h-14 items-center px-6">
         <Link href="/" className="flex items-center">
-          <BrandLogo size={24} showWordmark />
+          <BrandLogo size={28} showWordmark />
         </Link>
       </header>
       <div className="flex flex-1 items-center justify-center px-4 pb-16">

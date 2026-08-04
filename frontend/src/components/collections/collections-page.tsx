@@ -14,9 +14,11 @@ import {
   Pencil,
   X,
   Unlink,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, Collection, MockAPIListItem } from "@/lib/api";
+import { downloadJson } from "@/lib/download";
 import { MethodBadge } from "@/components/apis/method-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -359,6 +361,52 @@ export function CollectionsPage({ workspace }: { workspace: string }) {
                   </Button>
                   <Button size="sm" variant="outline" onClick={deployAll}>
                     <Rocket className="mr-1.5 h-3.5 w-3.5" /> Deploy all
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const data = await api.collections.export(
+                          selected.id,
+                          "openapi"
+                        );
+                        downloadJson(
+                          `${selected.name.replace(/\s+/g, "-").toLowerCase()}.openapi.json`,
+                          data
+                        );
+                        toast.success("Exported OpenAPI");
+                      } catch (e) {
+                        toast.error(
+                          e instanceof Error ? e.message : "Export failed"
+                        );
+                      }
+                    }}
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" /> OpenAPI
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const data = await api.collections.export(
+                          selected.id,
+                          "postman"
+                        );
+                        downloadJson(
+                          `${selected.name.replace(/\s+/g, "-").toLowerCase()}.postman.json`,
+                          data
+                        );
+                        toast.success("Exported Postman");
+                      } catch (e) {
+                        toast.error(
+                          e instanceof Error ? e.message : "Export failed"
+                        );
+                      }
+                    }}
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" /> Postman
                   </Button>
                   <Button size="sm" variant="outline" onClick={openAddDialog}>
                     <Link2 className="mr-1.5 h-3.5 w-3.5" /> Add existing
