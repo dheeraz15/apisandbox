@@ -3,8 +3,8 @@ function getApiBase(): string {
   if (envBase) return envBase;
 
   if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000/api/v1`;
+    const { origin } = window.location;
+    return `${origin}/api/v1`;
   }
 
   return "http://localhost:8000/api/v1";
