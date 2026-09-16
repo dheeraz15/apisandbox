@@ -39,7 +39,14 @@ def handle_mock_request(request, workspace_slug, endpoint_path, custom_domain=No
             break
 
     if not matched_api:
-        # Path may exist under a different method — give a clearer error
+        # No explicit endpoint claimed this path, so it may belong to a
+        # resource. Endpoints are checked first on purpose: an endpoint the
+        # user wrote by hand should win over a generated CRUD route.
+        resource_response = _try_resource(request, workspace_slug, full_path, method)
+        if resource_response is not None:
+            return resource_response
+
+        # Path may exist under a different method, so give a clearer error
         path_candidates = MockAPI.objects.filter(
             workspace__slug=workspace_slug,
             is_deployed=True,
@@ -182,6 +189,40 @@ class MockAPIHandlerView(View):
             "Content-Type, Authorization, X-API-Key"
         )
         return response
+
+
+def _try_resource(request, workspace_slug, full_path, method):
+    """Serve the request from a Resource, or return None if none matches."""
+    from .resources import handle_resource_request, match_resource, touch
+
+    resource, record_key = match_resource(workspace_slug, full_path)
+    if resource is None:
+        return None
+
+    body = None
+    if method in ("POST", "PUT", "PATCH"):
+        try:
+            body = json.loads(request.body or b"{}")
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {"error": "INVALID_JSON", "message": "Body is not valid JSON."},
+                status=400,
+            )
+
+    query_params = {key: values for key, values in request.GET.lists()}
+
+    result = handle_resource_request(
+        resource, record_key, method, body, query_params
+    )
+    touch(resource)
+
+    response = JsonResponse(
+        result["body"], status=result["status"], safe=isinstance(result["body"], dict)
+    )
+    for key, value in (result.get("headers") or {}).items():
+        response[key] = value
+    response["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
+    return response
 
 
 def _match_path(pattern: str, path: str) -> dict | None:

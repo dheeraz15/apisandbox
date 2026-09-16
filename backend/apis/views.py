@@ -7,13 +7,15 @@ from django.db.models import Q
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
 import json
-from .models import MockAPI, Collection, Dataset, APIVersion
+from .models import MockAPI, Collection, Dataset, APIVersion, Resource
 from .serializers import (
     MockAPISerializer,
     MockAPIListSerializer,
     CollectionSerializer,
     DatasetSerializer,
     MockAPIVersionSerializer,
+    ResourceSerializer,
+    ResourceRecordSerializer,
 )
 from .ai_generator import generate_api_from_prompt
 from .import_parser import import_from_format, persist_import
@@ -487,3 +489,77 @@ class DatasetViewSet(viewsets.ModelViewSet):
             data=catalog.get("data") or {},
         )
         return Response(DatasetSerializer(ds).data, status=201)
+
+
+class ResourceViewSet(viewsets.ModelViewSet):
+    """CRUD over the resource definitions themselves, plus their records."""
+
+    serializer_class = ResourceSerializer
+    permission_classes = [IsAuthenticated, IsWorkspaceMember]
+
+    def get_queryset(self):
+        qs = Resource.objects.filter(
+            workspace_id__in=user_workspace_ids(self.request.user)
+        ).select_related("workspace")
+        workspace_slug = self.request.query_params.get("workspace")
+        if workspace_slug:
+            qs = qs.filter(workspace__slug=workspace_slug)
+        collection = self.request.query_params.get("collection")
+        if collection:
+            qs = qs.filter(collection_id=collection)
+        return qs
+
+    def perform_create(self, serializer):
+        workspace = serializer.validated_data.get("workspace")
+        if workspace:
+            require_workspace_access(self.request.user, workspace_id=workspace.id, edit=True)
+        resource = serializer.save(deployed_at=timezone.now())
+
+        # Creating a resource with nothing in it is a dead end, so seed it.
+        seed = self.request.data.get("seed_count")
+        if seed:
+            from runtime.resources import seed_records
+
+            seed_records(resource, seed)
+
+    def perform_update(self, serializer):
+        require_workspace_access(
+            self.request.user, workspace_id=self.get_object().workspace_id, edit=True
+        )
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_workspace_access(
+            self.request.user, workspace_id=instance.workspace_id, edit=True
+        )
+        instance.delete()
+
+    @action(detail=True, methods=["get", "post", "delete"])
+    def records(self, request, pk=None):
+        from runtime.resources import seed_records
+
+        resource = self.get_object()
+
+        if request.method == "GET":
+            rows = resource.records.all()[:500]
+            return Response(ResourceRecordSerializer(rows, many=True).data)
+
+        require_workspace_access(request.user, workspace_id=resource.workspace_id, edit=True)
+
+        if request.method == "DELETE":
+            removed, _ = resource.records.all().delete()
+            return Response({"deleted": removed})
+
+        created = seed_records(resource, request.data.get("count", 10))
+        return Response(
+            {"created": created, "total": resource.record_count},
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"])
+    def preview(self, request, pk=None):
+        """Render a single record so the UI can show the shape before saving."""
+        from runtime.resources import generate_record
+
+        resource = self.get_object()
+        return Response({"record": generate_record(resource)})

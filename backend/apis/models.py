@@ -205,3 +205,124 @@ class APIVersion(models.Model):
 
     def __str__(self):
         return f"{self.api.name} {self.version}"
+
+
+class Resource(models.Model):
+    """A REST collection served as one unit: list, create, read, update, delete.
+
+    A MockAPI is a single method on a single path, which is right for a one off
+    endpoint but wrong for a resource. Splitting /accounts across five MockAPI
+    rows gave each of them its own state, so a POST and a later GET could never
+    see each other and stateful CRUD did not actually work across operations.
+
+    A Resource owns its records instead, in ResourceRecord, so every operation
+    reads and writes the same store.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(
+        Workspace, on_delete=models.CASCADE, related_name="resources"
+    )
+    collection = models.ForeignKey(
+        Collection,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="resources",
+    )
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+
+    # Base path, without the workspace prefix, for example "/accounts".
+    path = models.CharField(max_length=500)
+
+    # Template for a generated record, using the same {{variables}} as
+    # responses. Also the shape shown to someone reading the docs.
+    item_template = models.JSONField(default=dict, blank=True)
+
+    # Field used in the URL for a single record.
+    id_field = models.CharField(max_length=64, default="id")
+
+    auth_type = models.CharField(max_length=20, default="none")
+    auth_config = models.JSONField(default=dict, blank=True)
+    behavior = models.JSONField(default=dict, blank=True)
+
+    # Off means write operations are rejected, for a read only fixture.
+    allow_writes = models.BooleanField(default=True)
+
+    is_deployed = models.BooleanField(default=True)
+    deployed_at = models.DateTimeField(null=True, blank=True)
+    total_requests = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        unique_together = ["workspace", "path"]
+
+    def __str__(self):
+        return f"{self.name} ({self.path})"
+
+    @property
+    def normalized_path(self) -> str:
+        p = self.path.strip()
+        if not p.startswith("/"):
+            p = "/" + p
+        return p.rstrip("/") or "/"
+
+    @property
+    def deployed_url(self) -> str:
+        from django.conf import settings
+
+        base = settings.SANDBOX_BASE_URL.rstrip("/")
+        return f"{base}/api/{self.workspace.slug}{self.normalized_path}"
+
+    @property
+    def record_count(self) -> int:
+        return self.records.count()
+
+    def operations(self) -> list[dict]:
+        """The routes this resource answers, for docs and the UI."""
+        path = self.normalized_path
+        item = f"{path}/{{{self.id_field}}}"
+        ops = [
+            {"method": "GET", "path": path, "summary": f"List {self.name}"},
+            {"method": "GET", "path": item, "summary": f"Get one {self.name}"},
+        ]
+        if self.allow_writes:
+            ops += [
+                {"method": "POST", "path": path, "summary": f"Create {self.name}"},
+                {"method": "PUT", "path": item, "summary": f"Replace {self.name}"},
+                {"method": "PATCH", "path": item, "summary": f"Update {self.name}"},
+                {"method": "DELETE", "path": item, "summary": f"Delete {self.name}"},
+            ]
+        return ops
+
+
+class ResourceRecord(models.Model):
+    """One stored item belonging to a Resource.
+
+    Records live in their own table rather than a JSON blob on the parent so
+    that listing can paginate, filter and sort in the database instead of
+    loading every record into memory.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    resource = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="records"
+    )
+    # The value used in the URL. Kept alongside data so lookups are indexed.
+    key = models.CharField(max_length=255, db_index=True)
+    data = models.JSONField(default=dict)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        unique_together = ["resource", "key"]
+
+    def __str__(self):
+        return f"{self.resource.name}:{self.key}"

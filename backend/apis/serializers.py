@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import MockAPI, Collection, Dataset, APIVersion
+from .models import MockAPI, Collection, Dataset, APIVersion, Resource, ResourceRecord
 
 
 class CollectionSerializer(serializers.ModelSerializer):
@@ -184,3 +184,67 @@ class MockAPIVersionSerializer(serializers.ModelSerializer):
         model = APIVersion
         fields = ["id", "version", "snapshot", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+
+class ResourceRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResourceRecord
+        fields = ["id", "key", "data", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class ResourceSerializer(serializers.ModelSerializer):
+    record_count = serializers.IntegerField(read_only=True)
+    deployed_url = serializers.CharField(read_only=True)
+    operations = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Resource
+        fields = [
+            "id",
+            "workspace",
+            "collection",
+            "name",
+            "description",
+            "path",
+            "item_template",
+            "id_field",
+            "auth_type",
+            "auth_config",
+            "behavior",
+            "allow_writes",
+            "is_deployed",
+            "deployed_at",
+            "total_requests",
+            "record_count",
+            "deployed_url",
+            "operations",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "total_requests",
+            "record_count",
+            "deployed_url",
+            "operations",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_operations(self, obj):
+        return obj.operations()
+
+    def validate_path(self, value):
+        path = (value or "").strip()
+        if not path.startswith("/"):
+            path = "/" + path
+        path = path.rstrip("/")
+        if not path or path == "/":
+            raise serializers.ValidationError("Give the resource a path, such as /accounts.")
+        if "{" in path or "}" in path:
+            raise serializers.ValidationError(
+                "The path is the collection itself, so it takes no parameters. "
+                "Item routes are added for you."
+            )
+        return path

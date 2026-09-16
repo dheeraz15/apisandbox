@@ -4,6 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  Rocket,
+  GitBranch,
+  Boxes,
   LayoutDashboard,
   Globe,
   FolderOpen,
@@ -56,6 +59,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "API",
     items: [
       { href: "/apis", label: "Endpoints", icon: Globe },
+      { href: "/resources", label: "Resources", icon: Boxes },
       { href: "/collections", label: "Collections", icon: FolderOpen },
       { href: "/apis/new?import=1", label: "Import", icon: Upload },
       { href: "/collections?export=1", label: "Export", icon: Download },
@@ -67,6 +71,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/datasets", label: "Datasets", icon: Database },
       { href: "/variables", label: "Variables", icon: Variable },
       { href: "/webhooks", label: "Webhooks", icon: Webhook },
+      { href: "/scenarios", label: "Scenarios", icon: GitBranch },
+      { href: "/deployments", label: "Deployments", icon: Rocket },
       { href: "/settings#domains", label: "Domains", icon: Globe },
     ],
   },

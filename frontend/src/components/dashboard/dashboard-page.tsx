@@ -132,10 +132,15 @@ export function DashboardPage({ workspace }: { workspace: string }) {
                 href={`/${workspace}/apis/${item.id}`}
                 className="flex items-center justify-between border-b border-border px-6 py-3 last:border-0 hover:bg-accent/30 transition-colors"
               >
-                <div className="flex min-w-0 items-center gap-3">
-                  <MethodBadge method={item.method} />
+                {/* Aligned to the first line rather than the block, so the
+                    badge sits level with the name and not between the two
+                    lines of text. */}
+                <div className="flex min-w-0 items-start gap-3">
+                  <MethodBadge method={item.method} className="mt-px shrink-0" />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{item.name}</p>
+                    <p className="truncate text-sm font-medium leading-5">
+                      {item.name}
+                    </p>
                     <p className="truncate font-mono text-xs text-muted-foreground">
                       {item.endpoint}
                     </p>

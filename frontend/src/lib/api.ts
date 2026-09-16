@@ -385,6 +385,42 @@ export const api = {
         `/collections/${id}/export/?format=${format}`
       ),
   },
+  resources: {
+    list: async (workspace: string) =>
+      unwrapList(
+        await fetchAPI<Resource[] | PaginatedResponse<Resource>>(
+          `/resources/?workspace=${encodeURIComponent(workspace)}`
+        )
+      ),
+    get: (id: string) => fetchAPI<Resource>(`/resources/${id}/`),
+    create: (data: Partial<Resource> & { seed_count?: number }) =>
+      fetchAPI<Resource>("/resources/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: Partial<Resource>) =>
+      fetchAPI<Resource>(`/resources/${id}/`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      fetchAPI<void>(`/resources/${id}/`, { method: "DELETE" }),
+    records: (id: string) =>
+      fetchAPI<ResourceRecord[]>(`/resources/${id}/records/`),
+    seed: (id: string, count: number) =>
+      fetchAPI<{ created: number; total: number }>(`/resources/${id}/records/`, {
+        method: "POST",
+        body: JSON.stringify({ count }),
+      }),
+    clearRecords: (id: string) =>
+      fetchAPI<{ deleted: number }>(`/resources/${id}/records/`, {
+        method: "DELETE",
+      }),
+    preview: (id: string) =>
+      fetchAPI<{ record: Record<string, unknown> }>(`/resources/${id}/preview/`, {
+        method: "POST",
+      }),
+  },
   datasets: {
     list: async (workspace: string, q?: string) => {
       const params = new URLSearchParams({ workspace });
@@ -1045,4 +1081,43 @@ export function prettyJSON(value: unknown): string {
   } catch {
     return typeof value === "string" ? value : String(value);
   }
+}
+
+
+export interface ResourceOperation {
+  method: string;
+  path: string;
+  summary: string;
+}
+
+/** A REST collection: one path, every operation, one shared store. */
+export interface Resource {
+  id: string;
+  workspace: string;
+  collection?: string | null;
+  name: string;
+  description: string;
+  path: string;
+  item_template: Record<string, unknown>;
+  id_field: string;
+  auth_type: string;
+  auth_config: Record<string, unknown>;
+  behavior: Record<string, unknown>;
+  allow_writes: boolean;
+  is_deployed: boolean;
+  deployed_at: string | null;
+  total_requests: number;
+  record_count: number;
+  deployed_url: string;
+  operations: ResourceOperation[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResourceRecord {
+  id: string;
+  key: string;
+  data: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }

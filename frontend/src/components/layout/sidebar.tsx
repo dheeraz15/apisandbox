@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { APP_NAME } from "@/lib/site";
 import {
+  Boxes,
   LayoutDashboard,
   Globe,
   FolderOpen,
@@ -23,7 +24,8 @@ import { api, type AuthUser } from "@/lib/api";
 
 const NAV_ITEMS = [
   { href: "", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/apis", label: "APIs", icon: Globe },
+  { href: "/apis", label: "Endpoints", icon: Globe },
+  { href: "/resources", label: "Resources", icon: Boxes },
   { href: "/collections", label: "Collections", icon: FolderOpen },
   { href: "/datasets", label: "Datasets", icon: Database },
   { href: "/variables", label: "Variables", icon: Variable },
