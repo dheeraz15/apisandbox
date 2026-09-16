@@ -137,9 +137,11 @@ export function SettingsPage({ workspace }: { workspace: string }) {
   const activeBase = defaultCustom
     ? `https://${defaultCustom.domain}`
     : platformBase;
+  // The backend tells us what to point a CNAME at. Before any domain has been
+  // added there is nothing to ask, so fall back to whatever host we are on.
   const cnameTarget =
     domains[0]?.cname_target ||
-    (typeof window !== "undefined" ? window.location.hostname : "api.dhirajchapagain.com.np");
+    (typeof window !== "undefined" ? window.location.hostname : "");
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">

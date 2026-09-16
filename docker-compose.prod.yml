@@ -17,24 +17,24 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/dheeraz15/apisandbox-backend:latest
+    build: ./backend
     ports:
       - "8100:8000"
     environment:
       DEBUG: "False"
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-api.dhirajchapagain.com.np,localhost,127.0.0.1}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?Set ALLOWED_HOSTS, e.g. api.example.com}
       ALLOW_CUSTOM_DOMAINS: "True"
       POSTGRES_DB: api_sandbox
       POSTGRES_USER: sandbox
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sandbox}
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://api.dhirajchapagain.com.np}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://api.dhirajchapagain.com.np}
-      SANDBOX_BASE_URL: ${SANDBOX_BASE_URL:-https://api.dhirajchapagain.com.np}
-      CUSTOM_DOMAIN_CNAME_TARGET: ${CUSTOM_DOMAIN_CNAME_TARGET:-api.dhirajchapagain.com.np}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-969201656229-h8isqsnu430niikndbbc2ojv5773trle.apps.googleusercontent.com}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS, e.g. https://app.example.com}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:?Set CSRF_TRUSTED_ORIGINS, e.g. https://app.example.com}
+      SANDBOX_BASE_URL: ${SANDBOX_BASE_URL:?Set SANDBOX_BASE_URL, the public URL of this backend}
+      CUSTOM_DOMAIN_CNAME_TARGET: ${CUSTOM_DOMAIN_CNAME_TARGET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       SEED_DEMO: ${SEED_DEMO:-False}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
@@ -56,11 +56,13 @@ services:
       start_period: 40s
 
   frontend:
-    image: ghcr.io/dheeraz15/apisandbox-frontend:latest
+    build: ./frontend
     ports:
       - "3100:3000"
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.dhirajchapagain.com.np/api/v1}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL, e.g. https://api.example.com/api/v1}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     depends_on:
       - backend
     restart: unless-stopped

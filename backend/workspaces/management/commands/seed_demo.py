@@ -11,13 +11,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         user, _ = User.objects.get_or_create(
-            username="demo@thirdfactor.com",
+            username="demo@example.com",
             defaults={
-                "email": "demo@thirdfactor.com",
+                "email": "demo@example.com",
                 "first_name": "Demo Manager",
             },
         )
-        user.email = "demo@thirdfactor.com"
+        user.email = "demo@example.com"
         user.first_name = user.first_name or "Demo Manager"
         user.set_password("demo1234")
         user.save()
@@ -26,7 +26,7 @@ class Command(BaseCommand):
             slug="demo",
             defaults={
                 "name": "Demo Workspace",
-                "description": "ThirdFactor API Sandbox demo",
+                "description": "Demo workspace",
                 "created_by": user,
             },
         )
@@ -41,10 +41,10 @@ class Command(BaseCommand):
                 f"Workspace '{workspace.name}' {'created' if created else 'exists'}"
             )
         )
-        self.stdout.write("Demo login: demo@thirdfactor.com / demo1234")
+        self.stdout.write("Demo login: demo@example.com / demo1234")
 
         for key, value in [
-            ("BANK_NAME", "ThirdFactor Bank"),
+            ("BANK_NAME", "Example Bank"),
             ("CURRENCY", "USD"),
             ("COUNTRY", "US"),
             ("BASE_URL", "http://localhost:8000"),

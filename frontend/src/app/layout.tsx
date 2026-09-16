@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { APP_DESCRIPTION, APP_NAME, siteUrl } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,29 +17,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: {
-    default: "backendruntime — Enterprise Integration Sandbox",
-    template: "%s — backendruntime",
+    default: `${APP_NAME}: self-hosted mock API server`,
+    template: `%s | ${APP_NAME}`,
   },
-  description:
-    "Enterprise Integration Sandbox. Deploy production-shaped mock APIs, custom domains, rules, and traffic analytics before the real backend ships.",
+  description: APP_DESCRIPTION,
   keywords: [
     "mock API",
-    "enterprise integration sandbox",
     "API mock server",
     "OpenAPI mock",
-    "custom domain API",
-    "backendruntime",
+    "API sandbox",
+    "self-hosted",
   ],
   icons: {
     icon: [{ url: "/logo.png", type: "image/png" }],
     apple: [{ url: "/logo.png" }],
   },
   openGraph: {
-    title: "backendruntime — Enterprise Integration Sandbox",
-    description:
-      "Deploy production-shaped mock APIs, custom domains, and traffic analytics before the real backend ships.",
-    images: [{ url: "/logo.png", width: 980, height: 980, alt: "backendruntime" }],
+    title: `${APP_NAME}: self-hosted mock API server`,
+    description: APP_DESCRIPTION,
+    images: [{ url: "/logo.png", width: 980, height: 980, alt: APP_NAME }],
   },
 };
 

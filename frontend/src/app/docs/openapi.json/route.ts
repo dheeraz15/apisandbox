@@ -1,17 +1,27 @@
 import { NextResponse } from "next/server";
 
+import { APP_NAME } from "@/lib/site";
+
+// Where this instance's backend lives. Falls back to the local dev server, so
+// the spec is usable out of the box without any configuration.
+const apiBase = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"
+).replace(/\/+$/, "");
+
+// The mock runtime is served from /api/{workspace}, a sibling of /api/v1.
+const runtimeBase = apiBase.replace(/\/v1$/, "");
+
 const spec = {
   openapi: "3.1.0",
   info: {
-    title: "backendruntime",
+    title: APP_NAME,
     version: "1.0.0",
     description:
-      "Enterprise API validator & mock infrastructure. Management API under /api/v1; mock runtime under /api/{workspace} or custom domains.",
-    contact: { url: "https://api.dhirajchapagain.com.np" },
+      "Management API under /api/v1; mock runtime under /api/{workspace} or a custom domain.",
   },
   servers: [
-    { url: "https://api.dhirajchapagain.com.np/api/v1", description: "Management API" },
-    { url: "https://api.dhirajchapagain.com.np/api", description: "Mock runtime (platform)" },
+    { url: apiBase, description: "Management API" },
+    { url: runtimeBase, description: "Mock runtime" },
   ],
   paths: {
     "/auth/register/": {

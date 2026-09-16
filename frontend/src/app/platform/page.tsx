@@ -1,7 +1,7 @@
 import { PlatformAdminPage } from "./platform-admin";
 
 export const metadata = {
-  title: "Platform admin — backendruntime",
+  title: "Platform admin",
   robots: { index: false, follow: false },
 };
 

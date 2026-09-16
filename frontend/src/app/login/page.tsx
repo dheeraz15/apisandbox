@@ -78,26 +78,12 @@ export default function LoginPage() {
         <Button type="submit" className="h-10 w-full" disabled={loading}>
           {loading ? "Signing in…" : "Continue"}
         </Button>
-        <div className="relative py-2">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">or</span>
-          </div>
-        </div>
         <GoogleAuthButton />
         <p className="text-center text-sm text-muted-foreground">
           No account?{" "}
           <Link href="/signup" className="text-foreground underline-offset-4 hover:underline">
             Sign up
           </Link>
-        </p>
-        <p className="text-center text-[11px] text-muted-foreground">
-          By continuing you agree to our{" "}
-          <Link href="/terms" className="underline-offset-4 hover:underline">Terms</Link>
-          {" "}and{" "}
-          <Link href="/privacy" className="underline-offset-4 hover:underline">Privacy</Link>.
         </p>
       </form>
     </AuthLayout>

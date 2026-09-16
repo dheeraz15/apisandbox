@@ -3,8 +3,8 @@ import { DocsShell } from "@/components/docs/docs-shell";
 import { DOC_SECTIONS } from "@/lib/docs-content";
 
 export const metadata = {
-  title: "Docs — backendruntime",
-  description: "Searchable documentation for backendruntime mock infrastructure.",
+  title: "Docs",
+  description: "Searchable documentation for running and using this mock API server.",
 };
 
 export default function DocsIndexPage() {
@@ -13,7 +13,7 @@ export default function DocsIndexPage() {
       <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
         Documentation
       </p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight">backendruntime docs</h1>
+      <h1 className="mt-3 text-3xl font-semibold tracking-tight">Documentation</h1>
       <p className="mt-3 max-w-2xl text-muted-foreground">
         Enterprise API validator & mock runtime. Browse topics or search above. Machine-readable
         surfaces:{" "}

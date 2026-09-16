@@ -14,7 +14,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const doc = getDoc(slug);
   return {
-    title: `${doc.title} — backendruntime docs`,
+    title: doc.title,
     description: doc.description,
   };
 }

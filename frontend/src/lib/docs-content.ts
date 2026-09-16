@@ -10,11 +10,13 @@ export const DOC_SECTIONS: DocSection[] = [
   {
     slug: "introduction",
     title: "Introduction",
-    description: "What backendruntime is and who it is for.",
+    description: "What this is and when to reach for it.",
     keywords: ["overview", "product", "mock", "validator"],
-    body: `backendruntime is enterprise infrastructure for reliable pre-backend mocking.
+    body: `API Sandbox is a self-hosted mock API server. You define endpoints, give them realistic responses, and call them over HTTP.
 
-Use it to validate contracts, build mock APIs with business rules, bind custom domains, receive webhooks, and inspect traffic before the real backend ships.
+Reach for it when the backend does not exist yet, when you need a third-party API you cannot hit from a dev machine, or when you need a dependency to fail on demand so you can test the unhappy path.
+
+Use it to validate contracts, build mock APIs with business rules, bind custom domains, receive webhooks, and inspect traffic.
 
 Core loops:
 1. Create a workspace
@@ -33,8 +35,8 @@ Core loops:
 4. Deploy.
 5. Call the live URL:
 
-Platform:
-\`POST https://api.dhirajchapagain.com.np/api/{workspace}/your-path\`
+Local instance:
+\`POST http://localhost:8000/api/{workspace}/your-path\`
 
 Custom domain (after DNS verify):
 \`POST https://api.yourcompany.com/your-path\``,
@@ -47,7 +49,7 @@ Custom domain (after DNS verify):
     body: `In Settings → Custom domains:
 
 1. Add \`api.yourcompany.com\`
-2. Create CNAME → \`api.dhirajchapagain.com.np\`
+2. Create a CNAME pointing at the host this instance runs on, which is the value of \`CUSTOM_DOMAIN_CNAME_TARGET\` on the backend
 3. Prefer Cloudflare proxy ON for HTTPS
 4. Optional TXT: \`_mockapi-verify.<host>\` = token shown in UI
 5. Click Verify DNS

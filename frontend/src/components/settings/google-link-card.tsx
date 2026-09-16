@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api, AuthUser } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { GOOGLE_CLIENT_ID, isGoogleAuthConfigured } from "@/lib/google-auth";
 
 declare global {
   interface Window {
@@ -21,9 +22,6 @@ declare global {
   }
 }
 
-const GOOGLE_CLIENT_ID =
-  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-  "969201656229-h8isqsnu430niikndbbc2ojv5773trle.apps.googleusercontent.com";
 
 export function GoogleLinkCard({ onUpdated }: { onUpdated?: (u: AuthUser) => void }) {
   const btnRef = useRef<HTMLDivElement>(null);

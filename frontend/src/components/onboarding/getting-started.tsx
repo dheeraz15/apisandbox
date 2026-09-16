@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Globe, ScrollText, FolderOpen, Zap, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getPlatformMockBase } from "@/lib/api";
+import { APP_NAME } from "@/lib/site";
 
 const WIZARD_KEY = (ws: string) => `br_wizard_${ws}`;
 
@@ -130,7 +131,7 @@ export function WelcomeWizard({
 
   const steps = [
     {
-      title: "Welcome to backendruntime",
+      title: `Welcome to ${APP_NAME}`,
       body: "Enterprise infrastructure for reliable pre-backend mocking — validate contracts, build mocks, and inspect traffic.",
     },
     {

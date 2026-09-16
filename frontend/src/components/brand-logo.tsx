@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { APP_NAME } from "@/lib/site";
 
 type BrandLogoProps = {
   className?: string;
@@ -29,7 +30,7 @@ export function BrandLogo({
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <Image
         src="/logo-mark.png"
-        alt="backendruntime"
+        alt={APP_NAME}
         width={size}
         height={size}
         className={cn(
@@ -45,7 +46,7 @@ export function BrandLogo({
             wordmarkClassName
           )}
         >
-          backendruntime
+          {APP_NAME}
         </span>
       )}
     </span>

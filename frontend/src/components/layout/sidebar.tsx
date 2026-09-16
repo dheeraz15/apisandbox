@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { APP_NAME } from "@/lib/site";
 import {
   LayoutDashboard,
   Globe,
@@ -55,7 +56,7 @@ export function Sidebar({ workspace }: SidebarProps) {
         <BrandLogo size={28} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold leading-none tracking-tight">
-            backendruntime
+            {APP_NAME}
           </p>
           <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
             {workspace}

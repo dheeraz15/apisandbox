@@ -160,10 +160,8 @@ CUSTOM_DOMAIN_CNAME_TARGET = os.getenv(
     "CUSTOM_DOMAIN_CNAME_TARGET",
     "",  # falls back to hostname of SANDBOX_BASE_URL
 )
-GOOGLE_CLIENT_ID = os.getenv(
-    "GOOGLE_CLIENT_ID",
-    "969201656229-h8isqsnu430niikndbbc2ojv5773trle.apps.googleusercontent.com",
-)
+# Optional. Set this and GOOGLE_CLIENT_SECRET to enable Google sign-in.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
 LOGGING = {

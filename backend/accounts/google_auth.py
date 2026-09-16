@@ -21,10 +21,8 @@ class AuthRateThrottle(AnonRateThrottle):
 
 
 def _google_client_id() -> str:
-    return os.getenv(
-        "GOOGLE_CLIENT_ID",
-        "969201656229-h8isqsnu430niikndbbc2ojv5773trle.apps.googleusercontent.com",
-    )
+    """Empty when this instance has no Google OAuth client configured."""
+    return os.getenv("GOOGLE_CLIENT_ID", "")
 
 
 def verify_google_id_token(id_token: str) -> dict:

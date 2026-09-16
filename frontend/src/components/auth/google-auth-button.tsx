@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, setAuthToken } from "@/lib/api";
-import { Button } from "@/components/ui/button";
+import { GOOGLE_CLIENT_ID, isGoogleAuthConfigured } from "@/lib/google-auth";
 
 declare global {
   interface Window {
@@ -19,10 +19,6 @@ declare global {
   }
 }
 
-const GOOGLE_CLIENT_ID =
-  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-  "969201656229-h8isqsnu430niikndbbc2ojv5773trle.apps.googleusercontent.com";
-
 export function GoogleAuthButton({
   label = "Continue with Google",
 }: {
@@ -35,6 +31,8 @@ export function GoogleAuthButton({
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    if (!isGoogleAuthConfigured) return;
+
     const existing = document.getElementById("google-gsi");
     const init = () => {
       if (!window.google || !btnRef.current) return;
@@ -79,8 +77,19 @@ export function GoogleAuthButton({
     document.head.appendChild(script);
   }, [router]);
 
+  // Nothing to show on an instance that has not set up a Google OAuth client.
+  if (!isGoogleAuthConfigured) return null;
+
   return (
     <div className="space-y-2">
+      <div className="relative py-2">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">or</span>
+        </div>
+      </div>
       {/* Fixed height reservation prevents layout jump while GSI loads */}
       <div className="relative flex min-h-[44px] w-full items-center justify-center">
         {!ready && !loading && (
@@ -97,11 +106,6 @@ export function GoogleAuthButton({
       </div>
       <p className="sr-only">{label}</p>
       {error && <p className="text-sm text-red-400">{error}</p>}
-      {!GOOGLE_CLIENT_ID && (
-        <Button type="button" variant="outline" className="w-full" disabled>
-          Google not configured
-        </Button>
-      )}
     </div>
   );
 }

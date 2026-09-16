@@ -1,12 +1,14 @@
 import { MetadataRoute } from "next";
 
+import { siteUrl } from "@/lib/site";
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: ["/", "/docs", "/docs/", "/llms.txt", "/llms-full.txt", "/pricing", "/terms", "/privacy"],
-      disallow: ["/api/"],
+      allow: ["/", "/docs", "/docs/"],
+      disallow: ["/api/", "/platform"],
     },
-    sitemap: "https://api.dhirajchapagain.com.np/sitemap.xml",
+    sitemap: `${siteUrl()}/sitemap.xml`,
   };
 }

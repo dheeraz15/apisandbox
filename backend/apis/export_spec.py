@@ -63,13 +63,13 @@ def api_to_postman_item(api) -> dict:
     return item
 
 
-def export_apis_postman(apis: Iterable, name: str = "backendruntime export") -> dict:
+def export_apis_postman(apis: Iterable, name: str = "API Sandbox export") -> dict:
     items = [api_to_postman_item(a) for a in apis]
     return {
         "info": {
             "name": name,
             "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-            "description": "Exported from backendruntime",
+            "description": "Exported from API Sandbox",
         },
         "item": items,
         "variable": [{"key": "baseUrl", "value": "https://example.com"}],
@@ -144,7 +144,7 @@ def api_to_openapi_path(api) -> dict:
     return {method: op}
 
 
-def export_apis_openapi(apis: Iterable, title: str = "backendruntime export") -> dict:
+def export_apis_openapi(apis: Iterable, title: str = "API Sandbox export") -> dict:
     paths: dict[str, dict] = {}
     for api in apis:
         path = api.endpoint if (api.endpoint or "").startswith("/") else f"/{api.endpoint}"
@@ -154,7 +154,7 @@ def export_apis_openapi(apis: Iterable, title: str = "backendruntime export") ->
         "info": {
             "title": title,
             "version": "1.0.0",
-            "description": "Exported from backendruntime",
+            "description": "Exported from API Sandbox",
         },
         "paths": paths,
     }
