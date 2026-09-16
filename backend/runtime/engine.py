@@ -68,6 +68,30 @@ class MockAPIEngine:
                 "latency_ms": latency,
             }
 
+        validation_error = self._check_request_schema(body)
+        if validation_error:
+            latency = int((time.time() - start) * 1000)
+            if not dry_run:
+                self._log_request(
+                    method,
+                    path,
+                    headers,
+                    body,
+                    422,
+                    validation_error,
+                    {},
+                    latency,
+                    client_ip,
+                    "schema_validation",
+                    query_params or {},
+                )
+            return {
+                "status": 422,
+                "body": validation_error,
+                "headers": {},
+                "latency_ms": latency,
+            }
+
         self._apply_delay()
 
         context = self._build_context(
@@ -198,6 +222,58 @@ class MockAPIEngine:
 
         return None
 
+    def _check_request_schema(self, body) -> dict | None:
+        """Validate the request body against body_schema, when asked to.
+
+        Off unless behavior.validate_request is true, because an endpoint that
+        starts rejecting traffic after someone pastes a schema in would be a
+        nasty surprise. Turned on, this is what makes the mock a contract: the
+        caller finds out immediately that it sent the wrong shape, instead of
+        getting a cheerful 200 and discovering the mismatch against the real
+        backend weeks later.
+        """
+        if not (self.api.behavior or {}).get("validate_request"):
+            return None
+
+        schema = self.api.body_schema or {}
+        if not schema:
+            return None
+
+        try:
+            from jsonschema import Draft7Validator
+        except ImportError:  # pragma: no cover - dependency is in requirements
+            return None
+
+        # An unusable schema must not take the endpoint down, and some problems
+        # (an unknown "type", say) only surface once validation actually runs,
+        # so both the check and the run are guarded.
+        try:
+            Draft7Validator.check_schema(schema)
+            validator = Draft7Validator(schema)
+            errors = sorted(
+                validator.iter_errors(body or {}), key=lambda e: list(e.path)
+            )
+        except Exception as exc:
+            return {
+                "error": "INVALID_SCHEMA",
+                "message": "The endpoint's body_schema is not valid JSON Schema.",
+                "detail": str(exc),
+            }
+        if not errors:
+            return None
+
+        return {
+            "error": "REQUEST_VALIDATION_FAILED",
+            "message": "Request body does not match the endpoint's schema.",
+            "violations": [
+                {
+                    "field": "/".join(str(p) for p in err.path) or "(root)",
+                    "message": err.message,
+                }
+                for err in errors[:20]
+            ],
+        }
+
     def _apply_delay(self):
         from django.conf import settings
 
@@ -227,7 +303,12 @@ class MockAPIEngine:
                 scenario_data = s
                 break
 
+        # A seed makes every random value in the response reproducible, so an
+        # endpoint can be used as a fixture in a snapshot test.
+        seed = (self.api.behavior or {}).get("seed")
+
         return {
+            "_seed": seed,
             "request": {
                 "method": method,
                 "path": path,
@@ -251,6 +332,16 @@ class MockAPIEngine:
             return rule_response, f"rule:{rule_name}"
 
         behavior = self.api.behavior or {}
+
+        # With sequence on, consecutive calls walk through the response list and
+        # then wrap. This is how you mock a job that is PENDING, PENDING, then
+        # COMPLETE, which a single static response cannot express.
+        if behavior.get("sequence"):
+            responses = self.api.responses or []
+            if responses:
+                position = self.api.total_requests % len(responses)
+                return responses[position], f"sequence:{position}"
+
         probabilities = behavior.get("probabilities", [])
         if probabilities:
             roll = random.random() * 100

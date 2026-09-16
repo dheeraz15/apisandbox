@@ -118,22 +118,80 @@ the frontend to the same value.
 
 ## Writing responses
 
-Response bodies support template variables, which are substituted per request:
+Response bodies support template variables, substituted per request. The builder
+has a searchable palette of all of them, so you do not have to memorise this.
 
 | | |
 | --- | --- |
-| Random | `{{uuid}}`, `{{timestamp}}`, `{{randomInt}}`, `{{randomFloat}}` |
-| Fake data | `{{faker.name}}`, `{{faker.email}}`, `{{faker.phone}}`, `{{faker.address}}` |
-| From the request | `{{request.body.field}}`, `{{request.query.id}}`, `{{request.path.id}}` |
-| From the workspace | `{{workspace.id}}`, `{{env.VARIABLE_NAME}}` |
+| Random | `{{uuid}}`, `{{randomInt}}`, `{{randomInt:1:10}}`, `{{randomFloat}}`, `{{randomBool}}` |
+| Pick one | `{{randomFrom:pending\|active\|closed}}` |
+| Dates | `{{timestamp}}`, `{{date}}`, `{{dateOffset:-7d}}` |
+| Fake data | `{{faker.name}}`, `{{faker.email}}`, `{{faker.company}}`, and any other Faker provider |
+| From the request | `{{request.body.field}}`, `{{request.query.page}}`, `{{request.path.id}}`, `{{request.headers.X-Thing}}` |
+| From the workspace | `{{workspace.slug}}`, `{{env.VARIABLE_NAME}}`, `{{index}}` |
 
-So a response of `{"id": "{{uuid}}", "echo": "{{request.body.name}}"}` returns a
-fresh id each call and echoes back what was posted.
+So `{"id": "{{uuid}}", "echo": "{{request.body.name}}"}` returns a fresh id each
+call and echoes back what was posted.
 
-Beyond that, **rules** let an endpoint answer differently based on the request,
-**scenarios** switch a whole workspace into a different mode such as "everything
-times out", and **stateful CRUD** keeps records between calls so a POST followed
-by a GET behaves the way a real API would.
+### Generating a list
+
+Replace any value with a `$repeat` block to get a generated array:
+
+```json
+{
+  "users": {
+    "$repeat": 10,
+    "$item": {
+      "id": "{{uuid}}",
+      "index": "{{index}}",
+      "name": "{{faker.name}}",
+      "status": "{{randomFrom:active|pending|closed}}"
+    }
+  }
+}
+```
+
+That returns ten different users. `"$repeat": [3, 8]` picks a random length in
+that range instead, which is useful when a list should not always be the same
+size. Blocks are capped at 1000 items so a stray zero cannot exhaust the server.
+
+### Making responses repeatable
+
+Random data and assertions do not mix. Set a **seed** on an endpoint and every
+generated value becomes deterministic, so the same request returns byte-identical
+output every time and a snapshot test can rely on it. Leave the seed empty for
+fresh data on each call.
+
+### Responses that change per call
+
+Turn on **cycle through responses** and each call returns the next response in
+the list, then wraps. That is how you mock a job that reports `PENDING`,
+`PENDING`, then `COMPLETE`, which a single static response cannot express.
+
+### Rejecting bad requests
+
+By default a mock accepts anything. Turn on **reject requests that do not match
+the body schema** and the endpoint validates the incoming body against its JSON
+Schema, returning 422 with the offending fields listed:
+
+```json
+{
+  "error": "REQUEST_VALIDATION_FAILED",
+  "message": "Request body does not match the endpoint's schema.",
+  "violations": [{ "field": "age", "message": "'x' is not of type 'integer'" }]
+}
+```
+
+This is what turns a mock into a contract. A caller sending the wrong shape finds
+out here rather than weeks later against the real backend.
+
+### Everything else
+
+**Rules** let an endpoint answer differently based on the request, **scenarios**
+switch a workspace into a different mode such as "everything times out",
+**probabilities** return a given status a percentage of the time, and **stateful
+CRUD** keeps records between calls so a POST followed by a GET behaves the way a
+real API would.
 
 ## Importing existing specs
 

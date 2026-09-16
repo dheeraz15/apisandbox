@@ -86,6 +86,64 @@ Features: responses with \`{{variables}}\`, scenarios, rules, delays, stateful C
 Wrong HTTP method returns 405 with \`allowed_methods\`.`,
   },
   {
+    slug: "generating-data",
+    title: "Generating data",
+    description: "Template variables, generated lists and repeatable output.",
+    keywords: ["faker", "template", "variables", "repeat", "seed", "random"],
+    body: `Response bodies are templates. The builder has a searchable palette of every variable, so this is a summary rather than something to memorise.
+
+Random: \`{{uuid}}\`, \`{{randomInt}}\`, \`{{randomInt:1:10}}\`, \`{{randomFloat}}\`, \`{{randomBool}}\`
+Pick one: \`{{randomFrom:pending|active|closed}}\`
+Dates: \`{{timestamp}}\`, \`{{date}}\`, \`{{dateOffset:-7d}}\` (s, m, h, d, w)
+Fake data: \`{{faker.name}}\`, \`{{faker.email}}\`, \`{{faker.company}}\`, and any other Faker provider
+Request: \`{{request.body.field}}\`, \`{{request.query.page}}\`, \`{{request.path.id}}\`, \`{{request.headers.X-Thing}}\`
+Workspace: \`{{env.KEY}}\`, \`{{workspace.slug}}\`, \`{{index}}\`
+
+## Generated lists
+
+Replace any value with a repeat block to return an array:
+
+\`\`\`json
+{
+  "users": {
+    "$repeat": 10,
+    "$item": { "id": "{{uuid}}", "name": "{{faker.name}}", "index": "{{index}}" }
+  }
+}
+\`\`\`
+
+\`"$repeat": [3, 8]\` picks a random length in that range. Lists are capped at 1000 items.
+
+## Repeatable output
+
+Random data and assertions do not mix. Set a seed under Behavior and every generated value becomes deterministic, so the same request returns identical output and a snapshot test can rely on it. Leave it empty for fresh data each call.`,
+  },
+  {
+    slug: "validating-requests",
+    title: "Validating requests",
+    description: "Turn a mock into a contract that rejects the wrong shape.",
+    keywords: ["schema", "validation", "contract", "422", "json schema"],
+    body: `By default an endpoint accepts any body. Turn on "Reject requests that do not match the body schema" under Behavior and the incoming body is validated against the endpoint's JSON Schema.
+
+A request that does not match gets 422 and a list of what was wrong:
+
+\`\`\`json
+{
+  "error": "REQUEST_VALIDATION_FAILED",
+  "message": "Request body does not match the endpoint's schema.",
+  "violations": [{ "field": "age", "message": "'x' is not of type 'integer'" }]
+}
+\`\`\`
+
+This is what turns a mock into a contract. A caller sending the wrong shape finds out immediately rather than weeks later against the real backend.
+
+It is off by default on purpose: an endpoint that started rejecting traffic the moment someone pasted in a schema would be a nasty surprise.
+
+## Responses that change per call
+
+Turn on "Cycle through responses" and each call returns the next response in the list, then wraps. That is how you mock a job that reports PENDING, PENDING, then COMPLETE.`,
+  },
+  {
     slug: "webhooks",
     title: "Webhooks",
     description: "Receive and fire webhooks.",

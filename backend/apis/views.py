@@ -177,6 +177,49 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         return Response(result)
 
     @action(detail=False, methods=["post"])
+    def preview_template(self, request):
+        """Render a response body without saving anything.
+
+        The `test` action needs a saved endpoint, so there was no way to see
+        what a template produces while you are still writing it. This takes a
+        draft body and returns the rendered result, which is what lets the
+        builder show real generated data as you type.
+        """
+        from runtime.template_engine import resolve_json
+
+        body = request.data.get("body")
+        if body is None:
+            return Response(
+                {"error": "body is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sample = request.data.get("request") or {}
+        context = {
+            "_seed": (request.data.get("behavior") or {}).get("seed"),
+            "request": {
+                "method": sample.get("method", "GET"),
+                "path": sample.get("path", "/"),
+                "headers": sample.get("headers", {}),
+                "query": sample.get("query", {}),
+                "body": sample.get("body", {}),
+                "path_params": sample.get("path_params", {}),
+            },
+            "workspace": {"id": "", "slug": "preview", "name": "Preview"},
+            "env": request.data.get("env", {}),
+            "scenario": {},
+        }
+
+        try:
+            rendered = resolve_json(body, context)
+        except Exception as exc:
+            return Response(
+                {"error": "RENDER_FAILED", "message": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({"rendered": rendered})
+
+    @action(detail=False, methods=["post"])
     def generate(self, request):
         prompt = request.data.get("prompt", "")
         if not prompt:

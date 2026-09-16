@@ -17,6 +17,8 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { MethodBadge } from "@/components/apis/method-badge";
 import { ImportDialog } from "@/components/apis/import-dialog";
+import { TemplatePalette } from "@/components/apis/template-palette";
+import { ResponsePreview } from "@/components/apis/response-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -152,6 +154,39 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
     selectedDomain === "platform"
       ? null
       : verifiedDomains.find((d) => d.id === selectedDomain) || null;
+  const behaviorSeed = (form.behavior as { seed?: number })?.seed;
+
+  /**
+   * Adds a generated list to the 200 response under an "items" key, leaving
+   * whatever is already there alone. Additive rather than replacing, so
+   * clicking it cannot lose work.
+   */
+  const addListToResponse = (snippet: string) => {
+    let block: unknown;
+    try {
+      block = JSON.parse(snippet);
+    } catch {
+      toast.error("Could not read that snippet");
+      return;
+    }
+
+    const responses = [...(form.responses || [])];
+    const idx = responses.findIndex((r) => r.status_code === 200);
+    const current = (idx >= 0 ? responses[idx]?.body : {}) as Record<string, unknown>;
+
+    let key = "items";
+    let n = 2;
+    while (key in (current || {})) key = `items${n++}`;
+
+    const body = { ...(current || {}), [key]: block };
+    const resp = { status_code: 200, name: "Success", body };
+    if (idx >= 0) responses[idx] = resp;
+    else responses.unshift(resp);
+
+    update({ responses });
+    toast.success(`Added "${key}" to the response`);
+  };
+
   const previewUrl = getEndpointUrl(
     workspace,
     form.endpoint || "/",
@@ -718,29 +753,38 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                   </div>
                   <div>
                     <Label>200 Response (supports {"{{variables}}"})</Label>
-                    <MonacoEditor
-                      height="260px"
-                      language="json"
-                      theme="vs-dark"
-                      value={prettyJSON(form.responses?.[0]?.body || {})}
-                      onChange={(v) => {
-                        try {
-                          const body = JSON.parse(v || "{}");
-                          const responses = [...(form.responses || [])];
-                          const idx = responses.findIndex((r) => r.status_code === 200);
-                          const resp = { status_code: 200, name: "Success", body };
-                          if (idx >= 0) responses[idx] = resp;
-                          else responses.unshift(resp);
-                          update({ responses });
-                        } catch { /* typing */ }
-                      }}
-                      options={{ minimap: { enabled: false }, fontSize: 13 }}
-                    />
+                    <div className="grid gap-3 lg:grid-cols-[1fr_260px]">
+                      <MonacoEditor
+                        height="320px"
+                        language="json"
+                        theme="vs-dark"
+                        value={prettyJSON(form.responses?.[0]?.body || {})}
+                        onChange={(v) => {
+                          try {
+                            const body = JSON.parse(v || "{}");
+                            const responses = [...(form.responses || [])];
+                            const idx = responses.findIndex((r) => r.status_code === 200);
+                            const resp = { status_code: 200, name: "Success", body };
+                            if (idx >= 0) responses[idx] = resp;
+                            else responses.unshift(resp);
+                            update({ responses });
+                          } catch { /* typing */ }
+                        }}
+                        options={{ minimap: { enabled: false }, fontSize: 13 }}
+                      />
+                      <div className="h-[320px] rounded-lg border border-border p-2">
+                        <TemplatePalette onUseSnippet={addListToResponse} />
+                      </div>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Pick a variable to copy it, then paste it into the editor.
+                      The preview on the right shows what callers receive.
+                    </p>
                   </div>
                 </div>
               )}
               {step === 5 && (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <Label>Artificial delay (ms)</Label>
                     <Input
@@ -755,8 +799,83 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
                         })
                       }
                     />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Hold the response back, so loading states get exercised.
+                    </p>
                   </div>
-                  <label className="flex items-center gap-2 text-sm">
+
+                  <div>
+                    <Label>Seed</Label>
+                    <Input
+                      type="number"
+                      placeholder="Leave empty for fresh data each call"
+                      value={behaviorSeed ?? ""}
+                      onChange={(e) => {
+                        const raw = e.target.value.trim();
+                        update({
+                          behavior: {
+                            ...form.behavior,
+                            seed: raw === "" ? undefined : parseInt(raw) || 0,
+                          },
+                        });
+                      }}
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      With a seed, generated values repeat exactly. Use one when
+                      a test asserts on the response.
+                    </p>
+                  </div>
+
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={Boolean(
+                        (form.behavior as { sequence?: boolean })?.sequence
+                      )}
+                      onChange={(e) =>
+                        update({
+                          behavior: { ...form.behavior, sequence: e.target.checked },
+                        })
+                      }
+                    />
+                    <span>
+                      Cycle through responses
+                      <span className="block text-[11px] text-muted-foreground">
+                        Each call returns the next response and then wraps, for
+                        mocking a job that goes pending, pending, then complete.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={Boolean(
+                        (form.behavior as { validate_request?: boolean })
+                          ?.validate_request
+                      )}
+                      onChange={(e) =>
+                        update({
+                          behavior: {
+                            ...form.behavior,
+                            validate_request: e.target.checked,
+                          },
+                        })
+                      }
+                    />
+                    <span>
+                      Reject requests that do not match the body schema
+                      <span className="block text-[11px] text-muted-foreground">
+                        Returns 422 listing the offending fields, so a caller
+                        sending the wrong shape finds out here rather than
+                        against the real backend.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <input
                       type="checkbox"
                       checked={deployOnCreate}
@@ -792,12 +911,10 @@ export function APIBuilderPage({ workspace }: APIBuilderPageProps) {
             </p>
             <p className="font-medium">{form.name || "Untitled API"}</p>
             <p className="text-muted-foreground">{form.description || "No description"}</p>
-            <div>
-              <p className="mb-1 text-[10px] uppercase text-muted-foreground">Response</p>
-              <pre className="max-h-72 overflow-auto rounded bg-background p-2 font-mono text-[11px] leading-relaxed">
-                {prettyJSON(form.responses?.[0]?.body || { message: "Configure a response" })}
-              </pre>
-            </div>
+            <ResponsePreview
+              body={form.responses?.[0]?.body || { message: "Configure a response" }}
+              seed={behaviorSeed}
+            />
             {(form.rules?.length ?? 0) > 0 && (
               <div>
                 <p className="mb-1 text-[10px] uppercase text-muted-foreground">Rules</p>

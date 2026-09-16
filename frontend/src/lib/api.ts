@@ -287,6 +287,11 @@ export const api = {
       fetchAPI<MockAPI>(`/apis/${id}/clone/`, { method: "POST" }),
     test: (id: string, data: TestRequest) =>
       fetchAPI<TestResponse>(`/apis/${id}/test/`, { method: "POST", body: JSON.stringify(data) }),
+    previewTemplate: (data: PreviewTemplateRequest) =>
+      fetchAPI<PreviewTemplateResponse>("/apis/preview_template/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
     generate: (prompt: string, workspace?: string) =>
       fetchAPI<Partial<MockAPI>>("/apis/generate/", {
         method: "POST",
@@ -959,6 +964,25 @@ export interface TestRequest {
   query_params?: Record<string, string>;
   body?: Record<string, unknown>;
   path_params?: Record<string, string>;
+}
+
+/** Renders a draft response body without saving an endpoint first. */
+export interface PreviewTemplateRequest {
+  body: unknown;
+  behavior?: { seed?: number | null };
+  env?: Record<string, string>;
+  request?: {
+    method?: string;
+    path?: string;
+    headers?: Record<string, string>;
+    query?: Record<string, unknown>;
+    body?: Record<string, unknown>;
+    path_params?: Record<string, string>;
+  };
+}
+
+export interface PreviewTemplateResponse {
+  rendered: unknown;
 }
 
 export interface TestResponse {
