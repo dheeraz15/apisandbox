@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle
 from django.db.models import Q
 from django.utils import timezone
+from django.core.serializers.json import DjangoJSONEncoder
 import json
 from .models import MockAPI, Collection, Dataset, APIVersion
 from .serializers import (
@@ -17,6 +18,17 @@ from .serializers import (
 from .ai_generator import generate_api_from_prompt
 from .import_parser import import_from_format, persist_import
 from workspaces.permissions import user_workspace_ids, require_workspace_access, IsWorkspaceMember
+
+
+def json_safe(data):
+    """Convert serializer output into something a JSONField can store.
+
+    DRF hands back UUID and datetime objects, which json.dumps refuses. Writing
+    that straight into a JSONField raises TypeError at insert time, which is
+    what used to make every deploy return a 500 after the endpoint had already
+    been created.
+    """
+    return json.loads(json.dumps(data, cls=DjangoJSONEncoder))
 
 
 class ImportRateThrottle(UserRateThrottle):
@@ -113,7 +125,7 @@ class MockAPIViewSet(viewsets.ModelViewSet):
         APIVersion.objects.create(
             api=api,
             version=api.version_label,
-            snapshot=MockAPISerializer(api).data,
+            snapshot=json_safe(MockAPISerializer(api).data),
         )
         return Response(MockAPISerializer(api).data)
 
@@ -304,7 +316,7 @@ class MockAPIViewSet(viewsets.ModelViewSet):
             versions = api.versions.all()
             return Response(MockAPIVersionSerializer(versions, many=True).data)
         require_workspace_access(request.user, workspace_id=api.workspace_id, edit=True)
-        snapshot = MockAPISerializer(api).data
+        snapshot = json_safe(MockAPISerializer(api).data)
         version = APIVersion.objects.create(
             api=api,
             version=request.data.get("version", api.version),

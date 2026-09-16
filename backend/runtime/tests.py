@@ -330,9 +330,19 @@ class BulkGenerationTests(RuntimeTestCase):
 
 class SeedTests(RuntimeTestCase):
     def body_with_random(self):
+        # Dates are in here on purpose. An earlier version seeded only the
+        # random number generator, so a seeded response containing a date still
+        # changed on every call and the promise of reproducibility was false.
         return {
             "status_code": 200,
-            "body": {"id": "{{uuid}}", "name": "{{faker.name}}", "n": "{{randomInt}}"},
+            "body": {
+                "id": "{{uuid}}",
+                "name": "{{faker.name}}",
+                "n": "{{randomInt}}",
+                "at": "{{date}}",
+                "ts": "{{timestamp}}",
+                "ago": "{{dateOffset:-30d}}",
+            },
         }
 
     def test_seeded_endpoint_repeats_itself(self):
@@ -375,6 +385,40 @@ class SeedTests(RuntimeTestCase):
             self.call("GET", "/a").json()["name"],
             self.call("GET", "/b").json()["name"],
         )
+
+
+    def test_seeded_dates_are_frozen(self):
+        self.deploy(
+            method="GET",
+            endpoint="/when",
+            behavior={"seed": 99},
+            responses=[
+                {"status_code": 200, "body": {"now": "{{date}}", "ago": "{{dateOffset:-1d}}"}}
+            ],
+        )
+
+        first = self.call("GET", "/when").json()
+        second = self.call("GET", "/when").json()
+
+        self.assertEqual(first, second)
+        # The offset still has to be a real day earlier than the frozen "now".
+        from datetime import datetime
+
+        gap = datetime.fromisoformat(first["now"]) - datetime.fromisoformat(first["ago"])
+        self.assertEqual(gap.days, 1)
+
+    def test_unseeded_dates_track_the_real_clock(self):
+        from datetime import datetime, timezone as tz
+
+        self.deploy(
+            method="GET",
+            endpoint="/livenow",
+            responses=[{"status_code": 200, "body": {"now": "{{date}}"}}],
+        )
+
+        value = datetime.fromisoformat(self.call("GET", "/livenow").json()["now"])
+
+        self.assertLess(abs((datetime.now(tz.utc) - value).total_seconds()), 60)
 
 
 class TemplatePrimitiveTests(RuntimeTestCase):

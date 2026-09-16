@@ -67,8 +67,11 @@ async function fetchAPI<T>(
       headers,
     });
   } catch {
-    throw new Error(
-      `Cannot reach the API at ${getApiBase()}. Check that the backend is running and that NEXT_PUBLIC_API_URL points at it.`
+    // Status 0 means the request never reached the server, which is a very
+    // different thing from the server answering 404.
+    throw new ApiError(
+      `Cannot reach the API at ${getApiBase()}. Check that the backend is running and that NEXT_PUBLIC_API_URL points at it.`,
+      0
     );
   }
   if (!res.ok) {
@@ -76,10 +79,33 @@ async function fetchAPI<T>(
       string,
       unknown
     >;
-    throw new Error(parseApiError(errorBody));
+    throw new ApiError(parseApiError(errorBody), res.status);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
+}
+
+/**
+ * An API call that failed, carrying the HTTP status.
+ *
+ * Callers need to tell a genuine 404 apart from the server being unreachable
+ * or erroring. Matching on message text got that wrong, and a transient
+ * failure would render as "not found".
+ */
+export class ApiError extends Error {
+  /** HTTP status, or 0 when the request never reached the server. */
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+
+  /** Worth retrying: the server was unreachable or had a problem of its own. */
+  get isTransient(): boolean {
+    return this.status === 0 || this.status >= 500;
+  }
 }
 
 /** Unwrap DRF paginated or plain array responses */

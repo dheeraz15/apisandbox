@@ -12,7 +12,6 @@ makes a mock usable in a snapshot test.
 import json
 import random
 import re
-import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -26,6 +25,9 @@ ITEM_KEY = "$item"
 # A repeat block is capped so a typo cannot ask for a million records and take
 # the process down with it.
 MAX_REPEAT = 1000
+
+# Fixed reference instant for seeded renders, so dates are reproducible.
+SEEDED_EPOCH = datetime(2024, 1, 1, tzinfo=timezone.utc)
 
 _shared_faker = Faker()
 
@@ -54,6 +56,22 @@ class Generator:
             return str(uuid.uuid4())
         # uuid4 does not accept a seed, so build one from seeded randomness.
         return str(uuid.UUID(int=self.random.getrandbits(128), version=4))
+
+    def now(self) -> datetime:
+        """The instant this render treats as "now".
+
+        The wall clock moves between calls, so a seeded response containing a
+        date would differ every time and the reproducibility the seed promises
+        would be a lie. Seeded renders therefore work from a fixed instant,
+        derived from the seed so different seeds still differ.
+        """
+        if self.seed is None:
+            return datetime.now(timezone.utc)
+        try:
+            offset = int(self.seed) % 100_000
+        except (TypeError, ValueError):
+            offset = 0
+        return SEEDED_EPOCH + timedelta(seconds=offset)
 
 
 def build_context_generator(context: dict) -> Generator:
@@ -137,7 +155,7 @@ def _resolve_variable(path: str, context: dict):
     if path == "uuid":
         return gen.uuid()
     if path == "timestamp":
-        return str(int(time.time()))
+        return str(int(gen.now().timestamp()))
     if path == "randomInt":
         return str(gen.random.randint(1, 100000))
     if path == "randomFloat":
@@ -145,7 +163,7 @@ def _resolve_variable(path: str, context: dict):
     if path == "randomBool":
         return "true" if gen.random.random() < 0.5 else "false"
     if path == "date":
-        return datetime.now(timezone.utc).isoformat()
+        return gen.now().isoformat()
     if path == "index":
         return str(context.get("_index", 0))
 
@@ -172,7 +190,7 @@ def _resolve_variable(path: str, context: dict):
     # {{dateOffset:-7d}} and {{dateOffset:3h}} give times relative to now, so a
     # response can carry a plausible "created two days ago".
     if path.startswith("dateOffset:"):
-        return _date_offset(path[len("dateOffset:") :])
+        return _date_offset(path[len("dateOffset:") :], gen)
 
     if path.startswith("faker."):
         method = getattr(gen.faker, path[6:], None)
@@ -208,13 +226,12 @@ _OFFSET_UNITS = {
 }
 
 
-def _date_offset(spec: str) -> str:
+def _date_offset(spec: str, gen: "Generator") -> str:
     match = _OFFSET_PATTERN.match(spec.strip())
     if not match:
         return f"{{{{unknown:dateOffset:{spec}}}}}"
     amount, unit = int(match.group(1)), match.group(2)
-    moment = datetime.now(timezone.utc) + timedelta(**{_OFFSET_UNITS[unit]: amount})
-    return moment.isoformat()
+    return (gen.now() + timedelta(**{_OFFSET_UNITS[unit]: amount})).isoformat()
 
 
 def _get_nested(obj, path: str, default=""):

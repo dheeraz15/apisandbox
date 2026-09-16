@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { api, getAuthToken } from "@/lib/api";
+import { ApiError, api, getAuthToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
 
@@ -13,15 +13,13 @@ const RESERVED = new Set([
   "login",
   "onboarding",
   "docs",
-  "pricing",
-  "terms",
-  "privacy",
-  "features",
   "platform",
   "api",
-  "llms.txt",
   "favicon.ico",
 ]);
+
+/** How many times to retry when the server is unreachable or erroring. */
+const MAX_RETRIES = 2;
 
 /**
  * Validates workspace slug. Renders a proper 404 instead of DRF error text.
@@ -34,9 +32,11 @@ export function WorkspaceGate({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [state, setState] = useState<"loading" | "ok" | "missing" | "unauthorized">(
-    "loading"
-  );
+  const [state, setState] = useState<
+    "loading" | "ok" | "missing" | "unauthorized" | "error"
+  >("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (RESERVED.has(workspace.toLowerCase())) {
@@ -47,27 +47,83 @@ export function WorkspaceGate({
       router.replace(`/login?next=/${workspace}`);
       return;
     }
-    api.workspaces
-      .get(workspace)
-      .then(() => setState("ok"))
-      .catch((e) => {
-        const msg = e instanceof Error ? e.message : "";
-        if (/no workspace matches|not found|404/i.test(msg)) {
+
+    let cancelled = false;
+
+    /**
+     * Only a real 404 means the workspace is missing. Treating every failure
+     * as "not found" meant a workspace created moments earlier, or a backend
+     * hiccup, showed a 404 page that a refresh then fixed.
+     */
+    const check = async (attempt = 0) => {
+      try {
+        await api.workspaces.get(workspace);
+        if (!cancelled) setState("ok");
+      } catch (e) {
+        if (cancelled) return;
+
+        const status = e instanceof ApiError ? e.status : -1;
+
+        if (status === 404) {
           setState("missing");
-        } else if (/unauthorized|401|403|credentials/i.test(msg)) {
-          setState("unauthorized");
-        } else {
-          // Still treat unknown as missing for cleaner UX
-          setState("missing");
+          return;
         }
-      });
-  }, [workspace, router]);
+        if (status === 401 || status === 403) {
+          setState("unauthorized");
+          return;
+        }
+
+        const transient = e instanceof ApiError ? e.isTransient : true;
+        if (transient && attempt < MAX_RETRIES) {
+          window.setTimeout(() => check(attempt + 1), 400 * (attempt + 1));
+          return;
+        }
+
+        setErrorMessage(e instanceof Error ? e.message : "Something went wrong");
+        setState("error");
+      }
+    };
+
+    setState("loading");
+    check();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace, router, reloadKey]);
 
   if (state === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading workspace…
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <div className="flex min-h-screen flex-col bg-background text-foreground">
+        <header className="flex h-14 items-center px-6">
+          <Link href="/">
+            <BrandLogo size={28} showWordmark />
+          </Link>
+        </header>
+        <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-6 pb-24">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Could not load this workspace
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            {errorMessage}
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button onClick={() => setReloadKey((k) => k + 1)}>Try again</Button>
+            <Button variant="outline" onClick={() => router.push("/")}>
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+              Home
+            </Button>
+          </div>
+        </main>
       </div>
     );
   }
