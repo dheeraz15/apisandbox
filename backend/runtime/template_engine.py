@@ -57,6 +57,12 @@ def _resolve_variable(path: str, context: dict) -> str:
             return str(method())
         return f"{{{{unknown:{path}}}}}"
 
+    # {{request.path.id}} means the captured path parameter, not an attribute of
+    # the path string, so it is resolved against path_params first.
+    if path.startswith("request.path."):
+        params = context.get("request", {}).get("path_params", {})
+        return _get_nested(params, path[len("request.path.") :])
+
     if path.startswith("request."):
         return _get_nested(context.get("request", {}), path[8:])
 

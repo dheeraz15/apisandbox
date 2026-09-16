@@ -72,6 +72,14 @@ export function CollectionsPage({ workspace }: { workspace: string }) {
     return list;
   };
 
+  const selectCollection = async (c: Collection) => {
+    setSelected(c);
+    setEndpointFilter("");
+    router.replace(`/${workspace}/collections?c=${c.id}`, { scroll: false });
+    const list = await api.collections.apis(c.id);
+    setApis(list);
+  };
+
   useEffect(() => {
     load()
       .then((list) => {
@@ -84,14 +92,6 @@ export function CollectionsPage({ workspace }: { workspace: string }) {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [workspace]);
-
-  const selectCollection = async (c: Collection) => {
-    setSelected(c);
-    setEndpointFilter("");
-    router.replace(`/${workspace}/collections?c=${c.id}`, { scroll: false });
-    const list = await api.collections.apis(c.id);
-    setApis(list);
-  };
 
   const create = async () => {
     if (!name.trim()) return;

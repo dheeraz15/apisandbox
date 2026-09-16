@@ -108,7 +108,13 @@ def handle_mock_request(request, workspace_slug, endpoint_path, custom_domain=No
                 body = request.body.decode("utf-8", errors="replace")
 
     headers = {k: v for k, v in request.headers.items()}
-    query_params = dict(request.GET)
+    # A QueryDict yields every value as a list. Templates like
+    # {{request.query.page}} should render 3, not ['3'], so single values are
+    # unwrapped and only genuinely repeated keys stay as lists.
+    query_params = {
+        key: values[0] if len(values) == 1 else values
+        for key, values in request.GET.lists()
+    }
 
     engine = MockAPIEngine(matched_api)
     result = engine.process_request(

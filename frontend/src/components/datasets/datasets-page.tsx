@@ -81,7 +81,7 @@ export function DatasetsPage({ workspace }: { workspace: string }) {
     }
   };
 
-  const useCatalog = async (item: DatasetCatalogItem) => {
+  const importFromCatalog = async (item: DatasetCatalogItem) => {
     if (!workspaceId) return;
     setImportingKey(item.key);
     try {
@@ -176,7 +176,7 @@ export function DatasetsPage({ workspace }: { workspace: string }) {
                         variant="outline"
                         className="h-7 gap-1 text-xs"
                         disabled={importingKey === item.key}
-                        onClick={() => useCatalog(item)}
+                        onClick={() => importFromCatalog(item)}
                       >
                         <Download className="h-3 w-3" />
                         Use

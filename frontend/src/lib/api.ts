@@ -66,9 +66,9 @@ async function fetchAPI<T>(
       ...options,
       headers,
     });
-  } catch (error) {
+  } catch {
     throw new Error(
-      "Cannot connect to API server. Ensure backend is running on port 8000."
+      `Cannot reach the API at ${getApiBase()}. Check that the backend is running and that NEXT_PUBLIC_API_URL points at it.`
     );
   }
   if (!res.ok) {
