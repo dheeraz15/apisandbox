@@ -1,5 +1,5 @@
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
-import { PlaceholderPage } from "@/components/placeholder-page";
+import { DeploymentsPage } from "@/components/deployments/deployments-page";
 
 export default async function Page({
   params,
@@ -9,11 +9,7 @@ export default async function Page({
   const { workspace } = await params;
   return (
     <WorkspaceLayout workspace={workspace}>
-      <PlaceholderPage
-        workspace={workspace}
-        title="Deployments"
-        description="Manage deployed API endpoints"
-      />
+      <DeploymentsPage workspace={workspace} />
     </WorkspaceLayout>
   );
 }

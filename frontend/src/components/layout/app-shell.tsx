@@ -25,7 +25,7 @@ import {
   Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api, AuthUser, setAuthToken } from "@/lib/api";
+import { api, AuthUser, setAuthToken, getCurrentUser } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -99,7 +99,7 @@ export function AppShell({
   useEffect(() => {
     setMode(getViewMode());
     rememberWorkspace(workspace);
-    api.auth.me().then(setUser).catch(() => setUser(null));
+    getCurrentUser().then(setUser).catch(() => setUser(null));
     api.workspaces.list().then(setWorkspaces).catch(() => {});
     const onMode = (e: Event) => {
       const detail = (e as CustomEvent<AppViewMode>).detail;

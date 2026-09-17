@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, getAuthToken } from "@/lib/api";
+import { getAuthToken, getCurrentUser } from "@/lib/api";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -14,8 +14,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       router.replace("/login");
       return;
     }
-    api.auth
-      .me()
+    getCurrentUser()
       .then(() => setReady(true))
       .catch(() => {
         router.replace("/login");

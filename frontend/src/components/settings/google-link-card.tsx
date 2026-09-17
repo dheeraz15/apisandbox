@@ -42,7 +42,7 @@ export function GoogleLinkCard({ onUpdated }: { onUpdated?: (u: AuthUser) => voi
   }, []);
 
   useEffect(() => {
-    if (loading || user?.google_linked) return;
+    if (!isGoogleAuthConfigured || loading || user?.google_linked) return;
 
     const mount = () => {
       if (!window.google || !btnRef.current) return;
@@ -107,6 +107,9 @@ export function GoogleLinkCard({ onUpdated }: { onUpdated?: (u: AuthUser) => voi
       </div>
     );
   }
+
+  // No OAuth client on this instance, so there is nothing to link to.
+  if (!isGoogleAuthConfigured) return null;
 
   return (
     <section className="rounded-lg border border-border p-4 space-y-3">

@@ -19,6 +19,8 @@ export function setAuthToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) localStorage.setItem("tf_token", token);
   else localStorage.removeItem("tf_token");
+  // The cached user belongs to the previous token.
+  clearCurrentUser();
 }
 
 function parseApiError(body: Record<string, unknown>): string {
@@ -106,6 +108,33 @@ export class ApiError extends Error {
   get isTransient(): boolean {
     return this.status === 0 || this.status >= 500;
   }
+}
+
+/**
+ * Shared "who am I" lookup.
+ *
+ * The workspace gate, the shell and the auth guard each need the current user
+ * on every page load, and each used to fetch it separately, so a single
+ * navigation issued the same request several times. They now share one
+ * in flight promise.
+ */
+let currentUser: Promise<AuthUser> | null = null;
+
+export function getCurrentUser(force = false): Promise<AuthUser> {
+  if (force || !currentUser) {
+    currentUser = fetchAPI<AuthUser>("/auth/me/").catch((e) => {
+      // A failed lookup must not be cached, or a retry after signing in would
+      // keep returning the old rejection.
+      currentUser = null;
+      throw e;
+    });
+  }
+  return currentUser;
+}
+
+/** Drop the cached user, on sign out or when the account changes. */
+export function clearCurrentUser() {
+  currentUser = null;
 }
 
 /** Unwrap DRF paginated or plain array responses */

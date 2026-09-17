@@ -1,5 +1,5 @@
 import { WorkspaceLayout } from "@/components/layout/workspace-layout";
-import { PlaceholderPage } from "@/components/placeholder-page";
+import { ScenariosPage } from "@/components/scenarios/scenarios-page";
 
 export default async function Page({
   params,
@@ -9,11 +9,7 @@ export default async function Page({
   const { workspace } = await params;
   return (
     <WorkspaceLayout workspace={workspace}>
-      <PlaceholderPage
-        workspace={workspace}
-        title="Scenarios"
-        description="Switch API behavior without changing endpoints"
-      />
+      <ScenariosPage workspace={workspace} />
     </WorkspaceLayout>
   );
 }
